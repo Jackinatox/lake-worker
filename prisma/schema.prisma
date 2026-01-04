@@ -1,0 +1,478 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider     = "prisma-client"
+  output       = "../src/generated/prisma"
+  moduleFormat = "cjs"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model GameData {
+  id       Int     @id @default(autoincrement())
+  name     String
+  data     Json?
+  enabled  Boolean @default(false)
+  featured Boolean @default(false)
+  sorting  Int     @default(0)
+
+  GameServer GameServer[]
+
+  ServerOrder GameServerOrder[]
+}
+
+model Location {
+  id           Int     @id @default(autoincrement())
+  name         String
+  diskPrice    Float
+  portsLimit   Int
+  backupsLimit Int
+  enabled      Boolean @default(true)
+  freeServer   Boolean @default(false)
+  ptLocationId Int     @default(1)
+  cpuId        Int     @default(1)
+  ramId        Int
+  sorting      Int     @default(0)
+
+  cpu CPU @relation(fields: [cpuId], references: [id], onDelete: Restrict)
+  ram RAM @relation(fields: [ramId], references: [id], onDelete: Restrict)
+
+  GameServer  GameServer[]
+  ServerOrder GameServerOrder[]
+
+  packages Package[]
+}
+
+model CPU {
+  id           Int    @id @default(autoincrement())
+  name         String
+  cores        Int?
+  threads      Int?
+  singleScore  Int?
+  multiScore   Int?
+  maxThreads   Int
+  minThreads   Int
+  pricePerCore Float  @default(0.2)
+
+  locations Location[]
+}
+
+model RAM {
+  id         Int    @id @default(autoincrement())
+  name       String
+  speed      Int?
+  pricePerGb Float
+  minGb      Float  @default(0.5)
+  maxGb      Float  @default(12)
+
+  locations Location[]
+}
+
+model GameServer {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  ramMB        Int
+  cpuPercent   Int
+  diskMB       Int
+  backupCount  Int
+  expires      DateTime
+  price        Float // To let the user extend his server at the original price in case we increase prices
+  type         GameServerType @default(CUSTOM)
+  lastExtended DateTime       @default(now())
+
+  ptServerId String?
+  ptAdminId  Int?
+  name       String
+
+  status    GameServerStatus
+  errorText String?
+
+  gameConfig Json?
+  gameDataId Int
+  gameData   GameData @relation(fields: [gameDataId], references: [id], onDelete: Restrict)
+
+  locationId Int
+  location   Location @relation(fields: [locationId], references: [id], onDelete: Restrict)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  ServerOrder GameServerOrder[]
+  WorkerLogs  WorkerLog[]
+
+  Email Email[]
+
+  ApplicationLog ApplicationLog[]
+}
+
+enum GameServerType {
+  CUSTOM
+  PACKAGE
+  FREE
+}
+
+enum GameServerStatus {
+  CREATED // Server created in pt
+  CREATION_FAILED // Only when pt.createServer failes, not the actual installation
+  ACTIVE // Server is installed
+
+  EXPIRED // Server expired, and will be deleted from pt soon
+  DELETED // Server deleted in pt
+}
+
+model GameServerOrder {
+  id Int @id @default(autoincrement())
+
+  gameServerId String? // Null if Creation event
+  gameServer   GameServer? @relation(fields: [gameServerId], references: [id], onDelete: SetNull)
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Restrict) // Restrict deletion to preserve order history for compliance/auditing
+
+  type       OrderType
+  ramMB      Int
+  cpuPercent Int
+  diskMB     Int
+  price      Float
+
+  receipt_url     String?
+  stripeSessionId String?     @unique
+  status          OrderStatus @default(PENDING)
+
+  expiresAt DateTime // New expiry date *if* order succeeds
+
+  gameConfig         Json? // This is the same as the GameConfig in models
+  creationGameDataId Int?
+  creationGameData   GameData? @relation(fields: [creationGameDataId], references: [id], onDelete: Restrict)
+
+  creationLocationId Int?
+  creationLocation   Location? @relation(fields: [creationLocationId], references: [id], onDelete: Restrict)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([stripeSessionId])
+}
+
+enum OrderStatus {
+  PENDING // Only the intend was created, now money received
+  PAID // Money received, now the server is being created
+  PAYMENT_FAILED // Stripe weebhook said order failed   
+  EXPIRED // Just to keep the entry, i dont know why yet
+}
+
+
+enum OrderType {
+  NEW
+  UPGRADE
+  DOWNGRADE // For later
+  RENEW
+  FREE_SERVER
+  TO_PAYED
+  PACKAGE
+}
+
+enum TicketCategory {
+  GENERAL
+  TECHNICAL
+  BILLING
+  ACCOUNT
+}
+
+enum TicketStatus {
+  OPEN
+  CLOSED
+  PENDING
+  RESOLVED
+}
+
+model SupportTicket {
+  id       Int            @id @default(autoincrement())
+  ticketId String         @unique @default(cuid())
+  userId   String
+  user     User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title    String?
+  message  String
+  category TicketCategory @default(GENERAL)
+  status   TicketStatus   @default(OPEN)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+  @@index([ticketId])
+}
+
+model Verification {
+  id         String   @id
+  identifier String
+  value      String
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @default(now()) @updatedAt
+
+  @@index([identifier])
+  @@map("verification")
+}
+
+model User {
+  id            String   @id
+  name          String
+  email         String
+  emailVerified Boolean  @default(false)
+  image         String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @default(now()) @updatedAt
+
+  sessions        Session[]
+  accounts        Account[]
+  GameServerOrder GameServerOrder[]
+  SupportTicket   SupportTicket[]
+  GameServer      GameServer[]
+  WorkerLogs      WorkerLog[]
+
+  role       String?
+  banned     Boolean?  @default(false)
+  banReason  String?
+  banExpires DateTime?
+
+  ptUserId     Int?
+  ptKey        String?
+  stripeUserId String?
+
+  lastLoginMethod String?
+
+  ptUsername     String?
+  UserSettings   Json             @default("{}")
+  ApplicationLog ApplicationLog[]
+
+  twoFactorEnabled Boolean?    @default(false)
+  twofactors       TwoFactor[]
+
+  @@unique([email])
+  @@unique([ptUsername])
+  @@index([email])
+  @@map("user")
+}
+
+model Session {
+  id        String   @id
+  expiresAt DateTime
+  token     String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  ipAddress String?
+  userAgent String?
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  impersonatedBy String?
+
+  @@unique([token])
+  @@index([userId])
+  @@index([token])
+  @@map("session")
+}
+
+model Account {
+  id                    String    @id
+  accountId             String
+  providerId            String
+  userId                String
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accessToken           String?
+  refreshToken          String?
+  idToken               String?
+  accessTokenExpiresAt  DateTime?
+  refreshTokenExpiresAt DateTime?
+  scope                 String?
+  password              String?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  @@index([userId])
+  @@map("account")
+}
+
+enum LogLevel {
+  TRACE
+  INFO
+  WARN
+  ERROR
+  FATAL
+}
+
+enum WorkerJobType {
+  EXPIRE_SERVERS
+  SEND_EMAILS
+  GENERATE_EMAILS
+  DELETE_SERVERS
+  GENERATE_DELETION_EMAILS
+  CHECK_NEW_VERSIONS
+}
+
+model WorkerLog {
+  id      Int           @id @default(autoincrement())
+  jobType WorkerJobType
+  jobRun  String? // Unique identifier for each job run
+  level   LogLevel
+  message String
+  details Json? // Store error stack traces, context data, etc.
+
+  // Optional relations for context
+  gameServerId String?
+  gameServer   GameServer? @relation(fields: [gameServerId], references: [id], onDelete: SetNull)
+
+  userId String?
+  user   User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+
+  @@index([jobType, level, createdAt])
+  @@index([gameServerId])
+  @@index([userId])
+}
+
+enum LogType {
+  SYSTEM
+  AUTHENTICATION
+  PAYMENT
+  PAYMENT_LOG
+  GAME_SERVER
+  EMAIL
+  SUPPORT_TICKET
+  FREE_SERVER_EXTEND
+  TELEGRAM
+}
+
+model ApplicationLog {
+  id      Int      @id @default(autoincrement())
+  level   LogLevel
+  type    LogType
+  message String
+  details Json?
+
+  // Request context
+  method    String?
+  path      String?
+  userAgent String?
+  ipAddress String?
+
+  // User context (optional)
+  userId String?
+  user   User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  gameServerId String?
+  gameServer   GameServer? @relation(fields: [gameServerId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+
+  @@index([level, createdAt])
+  @@index([type, createdAt])
+  @@index([userId])
+  @@index([gameServerId])
+  @@index([path, method])
+  @@index([createdAt])
+}
+
+model Email {
+  id                 Int         @id @default(autoincrement())
+  recipient          String
+  subject            String
+  html               String
+  sentAt             DateTime    @default(now())
+  type               EmailType
+  status             EmailStatus @default(PENDING)
+  GameServerId       String?
+  GameServer         GameServer? @relation(fields: [GameServerId], references: [id], onDelete: SetNull)
+  errorText          String?
+  retries            Int         @default(0)
+  expiresAt          DateTime?
+  nodeMailerResponse Json?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([GameServerId, status])
+  @@index([GameServerId, type, expiresAt])
+}
+
+enum EmailStatus {
+  PENDING
+  SENT
+  FAILED
+}
+
+enum EmailType {
+  EMAIL_VERIFICATION
+  REQUEST_PASSWORD_RESET
+  PASSWORD_RESET_SUCCESS
+  TWO_FACTOR_CREATED
+  TWO_FACTOR_REMOVED
+  TWO_FAKTOR_OPT_SEND
+  SUPPORT_TICKET_CREATED
+  SUPPORT_TICKET_RESPONSE
+  GAME_SERVER_EXPIRED
+  GAME_SERVER_EXPIRING_7_DAYS
+  GAME_SERVER_EXPIRING_1_DAY
+  GAME_SERVER_DELETION_1_DAY
+  GAME_SERVER_DELETION_7_DAYS
+  SERVER_BOOKING_CONFIRMATION
+  FREE_SERVER_CREATED
+  INVOICE
+}
+
+model KeyValue {
+  id      Int      @id @default(autoincrement())
+  key     String   @unique
+  string  String?
+  json    Json?
+  number  Float?
+  boolean Boolean?
+  note    String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([key])
+}
+
+model Package {
+  id              Int      @id @default(autoincrement())
+  imageName       String
+  name            String
+  description     String?
+  diskMB          Int
+  ramMB           Int
+  cpuPercent      Int
+  backups         Int
+  allocations     Int
+  locationId      Int
+  sorting         Int      @default(0)
+  location        Location @relation(fields: [locationId], references: [id], onDelete: Restrict)
+  discountPercent Float    @default(0)
+  enabled         Boolean  @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model TwoFactor {
+  id          String @id
+  secret      String
+  backupCodes String
+  userId      String
+  user        User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([secret])
+  @@index([userId])
+  @@map("twoFactor")
+}

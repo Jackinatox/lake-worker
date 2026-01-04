@@ -1,11 +1,15 @@
+import { BullModule } from '@nestjs/bullmq';
 import { Module } from '@nestjs/common';
+import { ConfigModule } from '@nestjs/config';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
-import { BullModule } from '@nestjs/bullmq';
-import { PrismaService } from './core/prisma.service';
+import { CoreModule } from './core/core.module';
+import { ProvisioningModule } from './modules/provisoning/provisioning.module';
 
 @Module({
   imports: [
+    ConfigModule.forRoot(),
+    CoreModule,
     BullModule.forRoot({
       connection: {
         host: '10.1.17.5',
@@ -13,12 +17,9 @@ import { PrismaService } from './core/prisma.service';
       },
       defaultJobOptions: { attempts: 3, delay: 5000 },
     }),
-    BullModule.registerQueue({
-      name: 'free-provisioning-queue',
-    }),
+    ProvisioningModule,
   ],
   controllers: [AppController],
-  providers: [AppService, PrismaService],
-  exports: [PrismaService],
+  providers: [AppService],
 })
 export class AppModule {}

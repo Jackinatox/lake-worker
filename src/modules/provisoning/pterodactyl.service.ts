@@ -10,7 +10,15 @@
  *
  */
 
-import { GameServerOrder } from 'src/generated/prisma/browser.js';
+import { Prisma } from 'src/generated/prisma/client';
+
+type GameServerOrder = Prisma.GameServerOrderGetPayload<{
+  include: {
+    creationGameData: true;
+    creationLocation: true;
+    user: true;
+  };
+}>;
 
 // eslint-disable-next-line @typescript-eslint/require-await
 export async function provisionServer(order: GameServerOrder): Promise<string> {

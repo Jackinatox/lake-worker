@@ -2,6 +2,7 @@ import { InjectQueue } from '@nestjs/bullmq';
 import {
   BadRequestException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { Queue } from 'bullmq';
@@ -9,13 +10,15 @@ import { PrismaService } from '../../core/prisma.service';
 
 @Injectable()
 export class ProvisioningService {
+  private readonly logger = new Logger(ProvisioningService.name);
+
   constructor(
     private prisma: PrismaService,
     @InjectQueue('provisioning') private provisioningQueue: Queue,
   ) {}
 
   async createProvisioningJob(orderId: number) {
-    console.log(`Creating provisioning job for order ID: ${orderId}`);
+    this.logger.log(`Queuing provisioning job for order ID: ${orderId}`);
     // Fetch the order from the database
     const order = await this.prisma.gameServerOrder.findUnique({
       where: { id: orderId },
@@ -28,11 +31,13 @@ export class ProvisioningService {
 
     // Validate the order exists
     if (!order) {
+      this.logger.warn(`Order with ID ${orderId} not found`);
       throw new NotFoundException(`Order with ID ${orderId} not found`);
     }
 
     // Validate the order status is PAID
     if (order.status !== 'PAID') {
+      this.logger.warn(`Order with ID ${orderId} is not in PAID status`);
       throw new BadRequestException(
         `Order must be in PAID status. Current status: ${order.status}`,
       );
@@ -43,15 +48,18 @@ export class ProvisioningService {
       'provision-server',
       { orderId: order.id },
       {
-        jobId: `provision-order-${order.id}`,
         attempts: 3,
         backoff: { type: 'exponential', delay: 5000 },
       },
     );
 
+    this.logger.log(
+      `Queued provisioning job with job ID: ${job.id} for order ID: ${orderId}`,
+    );
+
     return {
       success: true,
-      message: 'Provisioning job created',
+      message: 'Provisioning job queued',
       jobId: job.id,
       orderId: order.id,
     };

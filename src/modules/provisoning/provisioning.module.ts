@@ -1,7 +1,7 @@
 import { Module } from '@nestjs/common';
 import { BullModule } from '@nestjs/bullmq';
 import { ProvisioningController } from './provisioning.controller';
-import { ProvisioningService } from './provisioning.service';
+import { ProvisioningService } from './queuing.service';
 
 @Module({
   imports: [

@@ -1,6 +1,6 @@
-import { Controller, Post, Body, HttpCode, HttpStatus } from '@nestjs/common';
-import { ProvisioningService } from './provisioning.service';
+import { Body, Controller, HttpCode, HttpStatus, Post } from '@nestjs/common';
 import { CreateProvisioningJobDto } from './dto/create-provisioning-job.dto';
+import { ProvisioningService } from './queuing.service';
 
 @Controller('provisioning')
 export class ProvisioningController {

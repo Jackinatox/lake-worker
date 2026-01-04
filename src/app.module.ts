@@ -1,7 +1,6 @@
 import { Module } from '@nestjs/common';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
-import { TestingModule } from './testing/testing.module';
 import { BullModule } from '@nestjs/bullmq';
 
 @Module({
@@ -11,8 +10,11 @@ import { BullModule } from '@nestjs/bullmq';
         host: '10.1.17.5',
         port: 6379,
       },
+      defaultJobOptions: { attempts: 3, delay: 5000 },
     }),
-    TestingModule,
+    BullModule.registerQueue({
+      name: 'free-provisioning-queue',
+    }),
   ],
   controllers: [AppController],
   providers: [AppService],

@@ -34,10 +34,9 @@ export class InstallationService {
     skipScripts: boolean = false,
   ): Promise<boolean> {
     const ptUrl = getPanelUrl();
-    const ptAdminKey = ''; // TODO: Take care of admin key
+    const ptAdminKey = process.env.PTERODACTYL_API_KEY!;
     try {
       // Get full server details with admin API
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
       const adminServer = await fetch(
         `${ptUrl}/api/application/servers/${ptAdminId}`,
         {
@@ -50,7 +49,7 @@ export class InstallationService {
         },
       )
         .then((response) => response.json())
-        // eslint-disable-next-line @typescript-eslint/no-unsafe-return, @typescript-eslint/no-unsafe-member-access
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-return
         .then((server) => server.attributes);
 
       const body = JSON.stringify({

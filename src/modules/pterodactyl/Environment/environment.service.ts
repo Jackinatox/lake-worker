@@ -72,7 +72,7 @@ export class EnvironmentService {
     return startAndVars;
   }
 
-  satifactory(gameConfig: SatisfactoryConfig): any {
+  satisfactory(gameConfig: SatisfactoryConfig): any {
     const startAndVars = {
       environment: {
         SRCDS_BETAID:

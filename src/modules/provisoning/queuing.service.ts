@@ -9,15 +9,15 @@ import { Queue } from 'bullmq';
 import { PrismaService } from '../../core/prisma.service';
 
 @Injectable()
-export class ProvisioningService {
-  private readonly logger = new Logger(ProvisioningService.name);
+export class QueueProvisionService {
+  private readonly logger = new Logger(QueueProvisionService.name);
 
   constructor(
     private prisma: PrismaService,
     @InjectQueue('provisioning') private provisioningQueue: Queue,
   ) {}
 
-  async createProvisioningJob(orderId: number) {
+  async createProvisioningJob(orderId: number, traceparent?: string) {
     this.logger.log(`Queuing provisioning job for order ID: ${orderId}`);
     // Fetch the order from the database
     const order = await this.prisma.gameServerOrder.findUnique({
@@ -46,7 +46,7 @@ export class ProvisioningService {
     // Add the job to the queue
     const job = await this.provisioningQueue.add(
       'provision-server',
-      { orderId: order.id },
+      { orderId: order.id, traceparent },
       {
         attempts: 3,
         backoff: { type: 'exponential', delay: 5000 },

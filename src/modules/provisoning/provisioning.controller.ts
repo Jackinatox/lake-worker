@@ -1,14 +1,40 @@
-import { Body, Controller, HttpCode, HttpStatus, Post } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Headers,
+  HttpCode,
+  HttpStatus,
+  Post,
+} from '@nestjs/common';
 import { CreateProvisioningJobDto } from './dto/create-provisioning-job.dto';
-import { ProvisioningService } from './queuing.service';
+import { QueueProvisionService } from './queuing.service';
+import { trace } from '@opentelemetry/api';
 
-@Controller('provisioning')
+@Controller('queue')
 export class ProvisioningController {
-  constructor(private provisioningService: ProvisioningService) {}
+  constructor(private provisioningService: QueueProvisionService) {}
 
-  @Post()
+  @Post('provision')
   @HttpCode(HttpStatus.ACCEPTED)
   async createJob(@Body() dto: CreateProvisioningJobDto) {
-    return this.provisioningService.createProvisioningJob(dto.orderId);
+    const tracer = trace.getTracer('provisioning-api');
+
+    return tracer.startActiveSpan(
+      'order.enqueue-provisioning',
+      {
+        attributes: {
+          'order.id': dto.orderId,
+        },
+      },
+      async (span) => {
+        try {
+          return await this.provisioningService.createProvisioningJob(
+            dto.orderId,
+          );
+        } finally {
+          span.end();
+        }
+      },
+    );
   }
 }

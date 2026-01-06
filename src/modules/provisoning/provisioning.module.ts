@@ -1,7 +1,7 @@
 import { Module } from '@nestjs/common';
 import { BullModule } from '@nestjs/bullmq';
 import { ProvisioningController } from './provisioning.controller';
-import { ProvisioningService } from './queuing.service';
+import { QueueProvisionService } from './queuing.service';
 import { ProvisioningProcessor } from './provisioning.processor';
 import { PterodactylService } from './pterodactyl.service';
 import { OrderService } from './services/order.service';
@@ -19,7 +19,7 @@ import { CoreModule } from 'src/core/core.module';
   ],
   controllers: [ProvisioningController],
   providers: [
-    ProvisioningService,
+    QueueProvisionService,
     ProvisioningProcessor,
     PterodactylService,
     PterodactylClientService,

@@ -2,7 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { getQueueToken } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
-import { ProvisioningService } from './queuing.service';
+import { QueueProvisionService } from './queuing.service';
 
 // Mock PrismaService before importing to avoid loading the real Prisma client
 jest.mock('../../core/prisma.service', () => ({
@@ -16,7 +16,7 @@ jest.mock('../../core/prisma.service', () => ({
 import { PrismaService } from '../../core/prisma.service';
 
 describe('ProvisioningService', () => {
-  let service: ProvisioningService;
+  let service: QueueProvisionService;
   let prismaService: PrismaService;
   let mockQueue: Partial<Queue>;
 
@@ -43,7 +43,7 @@ describe('ProvisioningService', () => {
     // Create testing module with mocked dependencies
     const module: TestingModule = await Test.createTestingModule({
       providers: [
-        ProvisioningService,
+        QueueProvisionService,
         {
           provide: PrismaService,
           useValue: {
@@ -59,7 +59,7 @@ describe('ProvisioningService', () => {
       ],
     }).compile();
 
-    service = module.get<ProvisioningService>(ProvisioningService);
+    service = module.get<QueueProvisionService>(QueueProvisionService);
     prismaService = module.get<PrismaService>(PrismaService);
   });
 

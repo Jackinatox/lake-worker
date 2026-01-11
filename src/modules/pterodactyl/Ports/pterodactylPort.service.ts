@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { getPanelUrl } from 'src/lib/GlobalConsstants';
+import { trace } from '@opentelemetry/api';
+import { User } from 'src/generated/prisma/client';
 
 interface AllocationAttributes {
   id: number;
@@ -30,20 +31,21 @@ interface PortConfigurationResult {
 
 @Injectable()
 export class PterodactylPortService {
+  private readonly tracer = trace.getTracer('PterodactylPortService', '1.0.0');
   private readonly logger = new Logger(PterodactylPortService.name);
+  private readonly pterodactylUrl = process.env.PTERODACTYL_URL;
+  private readonly pterodactylApiKey = process.env.PTERODACTYL_API_KEY;
 
   private async listServerAllocations(
     serverId: string,
     apiKey: string,
   ): Promise<AllocationAttributes[]> {
-    const panelUrl = getPanelUrl();
-
     const response = await fetch(
-      `${panelUrl}/api/client/servers/${serverId}/network/allocations`,
+      `${this.pterodactylUrl}/api/client/servers/${serverId}/network/allocations`,
       {
         headers: {
           Authorization: `Bearer ${apiKey}`,
-          Accept: 'Application/vnd.pterodactyl.v1+json',
+          Accept: 'application/vnd.pterodactyl.v1+json',
           'Content-Type': 'application/json',
         },
       },
@@ -67,7 +69,7 @@ export class PterodactylPortService {
     ip?: string,
     port?: number,
   ): Promise<AllocationAttributes> {
-    const panelUrl = getPanelUrl();
+    const panelUrl = this.pterodactylUrl;
 
     const body: { ip?: string; port?: number } = {};
     if (ip) body.ip = ip;
@@ -103,15 +105,13 @@ export class PterodactylPortService {
     apiKey: string,
     allocationId: number,
   ): Promise<AllocationAttributes> {
-    const panelUrl = getPanelUrl();
-
     const response = await fetch(
-      `${panelUrl}/api/client/servers/${serverId}/network/allocations/${allocationId}/primary`,
+      `${this.pterodactylUrl}/api/client/servers/${serverId}/network/allocations/${allocationId}/primary`,
       {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${apiKey}`,
-          Accept: 'Application/vnd.pterodactyl.v1+json',
+          Accept: 'application/vnd.pterodactyl.v1+json',
           'Content-Type': 'application/json',
         },
       },
@@ -131,18 +131,16 @@ export class PterodactylPortService {
 
   private async removeAllocation(
     serverId: string,
-    apiKey: string,
     allocationId: number,
+    apiKey: string,
   ): Promise<void> {
-    const panelUrl = getPanelUrl();
-
     const response = await fetch(
-      `${panelUrl}/api/client/servers/${serverId}/network/allocations/${allocationId}`,
+      `${this.pterodactylUrl}/api/client/servers/${serverId}/network/allocations/${allocationId}`,
       {
         method: 'DELETE',
         headers: {
           Authorization: `Bearer ${apiKey}`,
-          Accept: 'Application/vnd.pterodactyl.v1+json',
+          Accept: 'application/vnd.pterodactyl.v1+json',
           'Content-Type': 'application/json',
         },
       },
@@ -162,10 +160,8 @@ export class PterodactylPortService {
     allocationId: number,
     notes: string,
   ): Promise<AllocationAttributes> {
-    const panelUrl = getPanelUrl();
-
     const response = await fetch(
-      `${panelUrl}/api/client/servers/${serverId}/network/allocations/${allocationId}`,
+      `${this.pterodactylUrl}/api/client/servers/${serverId}/network/allocations/${allocationId}`,
       {
         method: 'POST',
         headers: {
@@ -191,152 +187,195 @@ export class PterodactylPortService {
 
   private async setAllocationCount(
     serverId: string,
-    apiKey: string,
     targetCount: number,
+    apiKey: string,
   ): Promise<AllocationAttributes[]> {
-    const currentAllocations = await this.listServerAllocations(
-      serverId,
-      apiKey,
-    );
-    const currentCount = currentAllocations.length;
+    return this.tracer.startActiveSpan('setAllocationCount', async (span) => {
+      span.setAttribute('server.ptId', serverId);
+      span.setAttribute('allocation.targetCount', targetCount);
 
-    if (currentCount === targetCount) {
-      this.logger.debug(
-        `Server ${serverId} already has ${targetCount} allocations`,
+      const currentAllocations = await this.listServerAllocations(
+        serverId,
+        apiKey,
       );
-      return currentAllocations;
-    }
+      const currentCount = currentAllocations.length;
 
-    if (currentCount < targetCount) {
-      // Add allocations
-      const allocationsToAdd = targetCount - currentCount;
+      span.setAttribute('allocation.currentCount', currentCount);
 
-      for (let i = 0; i < allocationsToAdd; i++) {
-        try {
-          await this.assignAllocation(serverId, apiKey);
-        } catch (error) {
-          this.logger.error(
-            `Failed to add allocation ${i + 1} of ${allocationsToAdd} to server ${serverId}`,
-          );
-          throw error;
-        }
-      }
-    } else {
-      // Remove allocations (cannot remove primary)
-      const allocationsToRemove = currentCount - targetCount;
-
-      const nonPrimaryAllocations = currentAllocations.filter(
-        (a) => !a.is_default,
-      );
-
-      if (nonPrimaryAllocations.length < allocationsToRemove) {
-        throw new Error(
-          `Cannot remove ${allocationsToRemove} allocations - only ${nonPrimaryAllocations.length} non-primary allocations available`,
+      if (currentCount === targetCount) {
+        this.logger.debug(
+          `Server ${serverId} already has ${targetCount} allocations`,
         );
+        span.end();
+        return currentAllocations;
       }
 
-      for (let i = 0; i < allocationsToRemove; i++) {
-        try {
-          await this.removeAllocation(
-            serverId,
-            apiKey,
-            nonPrimaryAllocations[i].id,
+      if (currentCount < targetCount) {
+        // Add allocations
+        const allocationsToAdd = targetCount - currentCount;
+        span.setAttribute('allocation.toAdd', allocationsToAdd);
+
+        for (let i = 0; i < allocationsToAdd; i++) {
+          try {
+            await this.assignAllocation(serverId, apiKey);
+          } catch (error) {
+            this.logger.error(
+              `Failed to add allocation ${i + 1} of ${allocationsToAdd} to server ${serverId}`,
+            );
+            span.end();
+            throw error;
+          }
+        }
+      } else {
+        // Remove allocations (cannot remove primary)
+        const allocationsToRemove = currentCount - targetCount;
+        span.setAttribute('allocation.toRemove', allocationsToRemove);
+
+        const nonPrimaryAllocations = currentAllocations.filter(
+          (a) => !a.is_default,
+        );
+
+        if (nonPrimaryAllocations.length < allocationsToRemove) {
+          span.end();
+          throw new Error(
+            `Cannot remove ${allocationsToRemove} allocations - only ${nonPrimaryAllocations.length} non-primary allocations available`,
           );
-        } catch (error) {
-          this.logger.error(
-            `Failed to remove allocation ${i + 1} of ${allocationsToRemove} from server ${serverId}`,
-          );
-          throw error;
+        }
+
+        for (let i = 0; i < allocationsToRemove; i++) {
+          try {
+            await this.removeAllocation(
+              serverId,
+              nonPrimaryAllocations[i].id,
+              apiKey,
+            );
+          } catch (error) {
+            this.logger.error(
+              `Failed to remove allocation ${i + 1} of ${allocationsToRemove} from server ${serverId}`,
+            );
+            span.end();
+            throw error;
+          }
         }
       }
-    }
 
-    // Return updated allocations
-    return await this.listServerAllocations(serverId, apiKey);
+      // Return updated allocations
+      const updatedAllocations = await this.listServerAllocations(
+        serverId,
+        apiKey,
+      );
+      span.setAttribute('allocation.finalCount', updatedAllocations.length);
+      span.end();
+      return updatedAllocations;
+    });
   }
 
   private async updateServerEnvironmentVariable(
     serverId: string,
-    apiKey: string,
     envVarName: string,
     value: string | number,
+    apiKey: string,
   ): Promise<void> {
-    const panelUrl = getPanelUrl();
+    return this.tracer.startActiveSpan('updateServerEnvVar', async (span) => {
+      span.setAttribute('server.ptId', serverId);
+      span.setAttribute('env.varName', envVarName);
+      span.setAttribute('env.value', String(value));
 
-    const response = await fetch(
-      `${panelUrl}/api/client/servers/${serverId}/startup/variable`,
-      {
-        method: 'PUT',
-        headers: {
-          Authorization: `Bearer ${apiKey}`,
-          Accept: 'Application/vnd.pterodactyl.v1+json',
-          'Content-Type': 'application/json',
+      const response = await fetch(
+        `${this.pterodactylUrl}/api/client/servers/${serverId}/startup/variable`,
+        {
+          method: 'PUT',
+          headers: {
+            Authorization: `Bearer ${apiKey}`,
+            Accept: 'Application/vnd.pterodactyl.v1+json',
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            key: envVarName,
+            value: String(value),
+          }),
         },
-        body: JSON.stringify({
-          key: envVarName,
-          value: String(value),
-        }),
-      },
-    );
-
-    if (!response.ok) {
-      const errorData = await response.text();
-      this.logger.error(
-        `Failed to update environment variable ${envVarName} for server ${serverId}: ${response.status} ${response.statusText} - ${errorData}`,
       );
-      return;
-    }
 
-    this.logger.log(
-      `Updated environment variable ${envVarName} to ${value} for server ${serverId}`,
-    );
+      if (!response.ok) {
+        const errorData = await response.text();
+        this.logger.error(
+          `Failed to update environment variable ${envVarName} for server ${serverId}: ${response.status} ${response.statusText} - ${errorData}`,
+        );
+        span.end();
+        return;
+      }
+
+      this.logger.log(
+        `Updated environment variable ${envVarName} to ${value} for server ${serverId}`,
+      );
+      span.end();
+    });
   }
 
   async correctPorts(
     ptServerId: string,
     gameId: number,
-    apiKey: string,
+    user: User,
     maxRetries: number = 4,
   ): Promise<PortConfigurationResult> {
     let lastError: Error | undefined;
+    return await this.tracer.startActiveSpan('correctPorts', async (span) => {
+      span.setAttribute('server.ptId', ptServerId);
+      span.setAttribute('game.id', gameId);
+      span.setAttribute('retry.maxAttempts', maxRetries);
 
-    for (let attempt = 1; attempt <= maxRetries; attempt++) {
-      try {
-        const result = await this.configureServerPorts(
-          ptServerId,
-          gameId,
-          apiKey,
-        );
+      for (let attempt = 1; attempt <= maxRetries; attempt++) {
+        try {
+          const result = await this.configureServerPorts(
+            ptServerId,
+            gameId,
+            user.ptKey!,
+          );
 
-        return {
-          ...result,
-          attemptsMade: attempt,
-        };
-      } catch (error) {
-        lastError = error instanceof Error ? error : new Error('Unknown error');
-        this.logger.warn(
-          `Port configuration attempt ${attempt}/${maxRetries} failed for server ${ptServerId}: ${lastError.message}`,
-        );
+          span.setAttribute('retry.actualAttempts', attempt);
+          span.setAttribute('port.allocations', result.allocations);
+          span.setAttribute('port.configured', result.portsConfigured.length);
 
-        if (attempt < maxRetries) {
-          const delayMs = Math.min(5000 * Math.pow(2, attempt - 1), 10000); // Exponential backoff, max 10s
+          return {
+            ...result,
+            attemptsMade: attempt,
+          };
+        } catch (error) {
+          if (error instanceof Error) {
+            span.recordException(error);
+            lastError = error;
+          } else {
+            lastError = new Error('Unknown error');
+          }
+          this.logger.warn(
+            `Port configuration attempt ${attempt}/${maxRetries} failed for server ${ptServerId}: ${lastError.message}`,
+          );
 
-          await new Promise((resolve) => setTimeout(resolve, delayMs));
+          if (attempt < maxRetries) {
+            const delayMs = Math.min(5000 * Math.pow(2, attempt - 1), 10000); // Exponential backoff, max 10s
+
+            await new Promise((resolve) => setTimeout(resolve, delayMs));
+          }
         }
       }
-    }
 
-    this.logger.error(
-      `All ${maxRetries} port configuration attempts failed for server ${ptServerId}`,
-    );
+      span.setAttribute('retry.actualAttempts', maxRetries);
+      span.setAttribute('error', lastError?.message || 'Unknown error');
 
-    return {
-      success: false,
-      allocations: 0,
-      portsConfigured: [],
-      error: lastError?.message || 'Unknown error',
-      attemptsMade: maxRetries,
-    };
+      this.logger.error(
+        `All ${maxRetries} port configuration attempts failed for server ${ptServerId}`,
+      );
+
+      span.end();
+      return {
+        success: false,
+        allocations: 0,
+        portsConfigured: [],
+        error: lastError?.message || 'Unknown error',
+        attemptsMade: maxRetries,
+      };
+    });
   }
 
   private async configureServerPorts(
@@ -344,78 +383,95 @@ export class PterodactylPortService {
     gameId: number,
     apiKey: string,
   ): Promise<Omit<PortConfigurationResult, 'attemptsMade'>> {
-    this.logger.debug(
-      `Starting port configuration for server ${ptServerId}, game ${gameId}`,
-    );
+    return this.tracer.startActiveSpan('configureServerPorts', async (span) => {
+      span.setAttribute('server.ptId', ptServerId);
+      span.setAttribute('game.id', gameId);
 
-    const GAME_PORT_CONFIG = {
-      1: {
-        requiredAllocations: 1,
-        ports: [],
-      },
-      2: {
-        requiredAllocations: 2,
-        ports: [
-          {
-            envVar: 'RELIABLE_PORT',
-            notes: 'Satisfactory Reliable Port',
-            isSecondary: true,
-          },
-        ],
-      },
-    } as const;
+      this.logger.debug(
+        `Starting port configuration for server ${ptServerId}, game ${gameId}`,
+      );
 
-    const gameConfig =
-      GAME_PORT_CONFIG[gameId as keyof typeof GAME_PORT_CONFIG];
+      const GAME_PORT_CONFIG = {
+        1: {
+          requiredAllocations: 1,
+          ports: [],
+        },
+        2: {
+          requiredAllocations: 2,
+          ports: [
+            {
+              envVar: 'RELIABLE_PORT',
+              notes: 'Satisfactory Reliable Port',
+              isSecondary: true,
+            },
+          ],
+        },
+      } as const;
 
-    if (!gameConfig) {
-      throw new Error(`No port configuration found for game ID: ${gameId}`);
-    }
+      const gameConfig =
+        GAME_PORT_CONFIG[gameId as keyof typeof GAME_PORT_CONFIG];
 
-    this.logger.log(
-      `Ensuring server has ${gameConfig.requiredAllocations} allocations`,
-    );
+      if (!gameConfig) {
+        span.end();
+        throw new Error(`No port configuration found for game ID: ${gameId}`);
+      }
 
-    const allocations = await this.setAllocationCount(
-      ptServerId,
-      apiKey,
-      gameConfig.requiredAllocations,
-    );
+      span.setAttribute(
+        'port.requiredAllocations',
+        gameConfig.requiredAllocations,
+      );
+      span.setAttribute('port.portsToConfig', gameConfig.ports.length);
 
-    const portsConfigured: string[] = [];
+      this.logger.log(
+        `Ensuring server has ${gameConfig.requiredAllocations} allocations`,
+      );
 
-    if (
-      gameConfig.ports.length > 0 &&
-      allocations.length >= gameConfig.requiredAllocations
-    ) {
-      const secondaryAllocations = allocations.filter((a) => !a.is_default);
+      const allocations = await this.setAllocationCount(
+        ptServerId,
+        gameConfig.requiredAllocations,
+        apiKey,
+      );
 
-      for (let i = 0; i < gameConfig.ports.length; i++) {
-        const portConfig = gameConfig.ports[i];
+      span.setAttribute('port.actualAllocations', allocations.length);
 
-        if (portConfig.isSecondary && secondaryAllocations[i]) {
-          const allocation = secondaryAllocations[i];
+      const portsConfigured: string[] = [];
 
-          await this.updateServerEnvironmentVariable(
-            ptServerId,
-            apiKey,
-            portConfig.envVar,
-            allocation.port,
-          );
+      if (
+        gameConfig.ports.length > 0 &&
+        allocations.length >= gameConfig.requiredAllocations
+      ) {
+        const secondaryAllocations = allocations.filter((a) => !a.is_default);
 
-          portsConfigured.push(`${portConfig.envVar}=${allocation.port}`);
+        for (let i = 0; i < gameConfig.ports.length; i++) {
+          const portConfig = gameConfig.ports[i];
+
+          if (portConfig.isSecondary && secondaryAllocations[i]) {
+            const allocation = secondaryAllocations[i];
+
+            await this.updateServerEnvironmentVariable(
+              ptServerId,
+              portConfig.envVar,
+              allocation.port,
+              apiKey,
+            );
+
+            portsConfigured.push(`${portConfig.envVar}=${allocation.port}`);
+          }
         }
       }
-    }
 
-    this.logger.log(
-      `Port configuration completed for server ${ptServerId}. Allocations: ${allocations.length}, Ports configured: ${portsConfigured.length}`,
-    );
+      span.setAttribute('port.configuredCount', portsConfigured.length);
 
-    return {
-      success: true,
-      allocations: allocations.length,
-      portsConfigured,
-    };
+      this.logger.log(
+        `Port configuration completed for server ${ptServerId}. Allocations: ${allocations.length}, Ports configured: ${portsConfigured.length}`,
+      );
+
+      span.end();
+      return {
+        success: true,
+        allocations: allocations.length,
+        portsConfigured,
+      };
+    });
   }
 }

@@ -38,11 +38,3 @@ export const FTP_PASSWORD_MAX_LENGTH = 64;
 
 export const MAX_EDITABLE_FILE_SIZE = 2 * 1024 * 1024;
 export const MAX_EDITABLE_FILE_SIZE_LABEL = '2 MB';
-
-export function getPanelUrl(): string {
-  const panelUrl = process.env.NEXT_PUBLIC_PTERODACTYL_URL;
-  if (!panelUrl) {
-    throw new Error('NEXT_PUBLIC_PTERODACTYL_URL is not defined');
-  }
-  return panelUrl;
-}

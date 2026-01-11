@@ -1,9 +1,13 @@
 import { Injectable } from '@nestjs/common';
 import { trace, SpanStatusCode } from '@opentelemetry/api';
+import { LoggerService } from './core/logger.service';
 
 @Injectable()
 export class AppService {
+  constructor(private readonly logger: LoggerService) {}
+
   getHello(): string {
+    this.logger.log('getHello endpoint called');
     return 'Hello World!';
   }
 
@@ -20,25 +24,43 @@ export class AppService {
       },
       async (span) => {
         try {
+          this.logger.log(
+            `Starting complex operation for user ${userId} with action: ${action}`,
+          );
+
           // Step 1: Validate user
           const user = await this.validateUser(userId);
           span.addEvent('User validated', { username: user.username });
+          this.logger.log(`User validated: ${user.username}`, {
+            userId,
+            username: user.username,
+          });
 
           // Step 2: Fetch user data
           const userData = await this.fetchUserData(userId);
           span.addEvent('User data fetched', {
             recordsFound: userData.records.length,
           });
+          this.logger.log(
+            `Fetched ${userData.records.length} records for user ${userId}`,
+          );
 
           // Step 3: Process business logic
           const processed = await this.processBusinessLogic(action, userData);
           span.addEvent('Business logic processed', {
             itemsProcessed: processed.count,
           });
+          this.logger.log(`Processed ${processed.count} items`, {
+            action,
+            metrics: processed.metrics,
+          });
 
           // Step 4: Save results
           await this.saveResults(userId, processed);
           span.addEvent('Results saved');
+          this.logger.log(`Results saved successfully for user ${userId}`, {
+            userId,
+          });
 
           span.setStatus({ code: SpanStatusCode.OK });
 
@@ -49,10 +71,18 @@ export class AppService {
             timestamp: new Date().toISOString(),
           };
         } catch (error) {
-          span.recordException(error);
+          const errorMessage =
+            error instanceof Error ? error.message : 'Unknown error';
+          const errorStack = error instanceof Error ? error.stack : undefined;
+          this.logger.error(`Error in complex operation: ${errorMessage}`, {
+            userId,
+            action,
+            error: errorStack,
+          });
+          span.recordException(error as Error);
           span.setStatus({
             code: SpanStatusCode.ERROR,
-            message: error.message,
+            message: errorMessage,
           });
           throw error;
         } finally {

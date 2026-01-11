@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { Job } from 'bullmq';
 import {
   EnvironmentConfig,
@@ -13,35 +13,64 @@ import { PterodactylClientService } from './services/pterodactyl-client.service'
 import { EnvironmentService } from '../pterodactyl/Environment/environment.service';
 import { MinecraftGameId, SatisfactoryGameId } from 'src/lib/GlobalConsstants';
 import { SatisfactoryConfig } from '../pterodactyl/Environment/GameConfig';
+import { Span, trace } from '@opentelemetry/api';
+import { LoggerService } from 'src/core/logger.service';
+import { PterodactylPortService } from '../pterodactyl/Ports/pterodactylPort.service';
 
 @Injectable()
 export class PterodactylService {
-  private readonly logger = new Logger(PterodactylService.name);
+  tracer = trace.getTracer('PterodactylService', '1.0.0');
 
   constructor(
     private readonly orderService: OrderService,
     private readonly ptClient: PterodactylClientService,
     private readonly envService: EnvironmentService,
+    private readonly logger: LoggerService,
+    private readonly ports: PterodactylPortService,
   ) {}
 
-  async provisionServer(order: GameServerOrder, job?: Job): Promise<string> {
-    const { order: validatedOrder, gameConfig } =
-      await this.orderService.getValidatedOrder(order.id);
+  async provisionServer(order: GameServerOrder, job: Job): Promise<string> {
+    return this.tracer.startActiveSpan('provisioning', async (span: Span) => {
+      span.setAttribute('order.id', order.id);
+      span.setAttribute('user.id', order.userId);
 
-    const serverOptions = this.buildServerOptions(validatedOrder, gameConfig);
-    await job?.updateProgress(30);
+      const { order: validatedOrder, gameConfig } =
+        await this.orderService.getValidatedOrder(order.id);
 
-    const serverId =
-      await this.orderService.createGameServerRecord(validatedOrder);
+      span.setAttribute('game.id', validatedOrder.creationGameData?.id || -1);
+      span.setAttribute(
+        'game.name',
+        validatedOrder.creationGameData?.name || 'unknown',
+      );
+      span.setAttribute('egg.id', gameConfig.eggId);
 
-    await this.createPterodactylServer(
-      serverOptions,
-      serverId,
-      String(validatedOrder.id),
-      job,
-    );
+      const serverOptions = this.buildServerOptions(validatedOrder, gameConfig);
 
-    return serverId;
+      await job.updateProgress(30);
+
+      const serverId =
+        await this.orderService.createGameServerRecord(validatedOrder);
+
+      span.setAttribute('server.dbId', serverId);
+
+      const ptId = await this.createPterodactylServer(
+        serverOptions,
+        serverId,
+        String(validatedOrder.id),
+        job,
+      );
+
+      span.setAttribute('server.ptId', ptId);
+
+      await this.ports.correctPorts(
+        ptId,
+        order.creationGameDataId || 1,
+        order.user,
+      );
+
+      span.end();
+      return serverId;
+    });
   }
 
   private buildServerOptions(
@@ -87,27 +116,65 @@ export class PterodactylService {
     }
   }
 
+  /**
+   * Will create the server over the Pterodactyl API
+   * @param options ka
+   * @param serverId from DB
+   * @param orderId from DB - for tracing - TODO: will be removed
+   * @param job job to tack process for user
+   * @returns pteServerId the user can use it to access the server in lake
+   */
   private async createPterodactylServer(
     options: ReturnType<ServerOptionsBuilder['build']>,
     serverId: string,
     orderId: string,
-    job?: Job,
-  ): Promise<void> {
-    try {
-      const ptServer = await this.ptClient.createServerWithRetry(options);
+    job: Job,
+  ): Promise<string> {
+    return await this.tracer.startActiveSpan(
+      'createServerPT',
+      async (span: Span) => {
+        try {
+          span.setAttribute('server.dbId', serverId);
+          span.setAttribute('order.id', orderId);
+          span.setAttribute('server.name', options.name);
 
-      this.logger.log(
-        `Provisioned server ${ptServer.identifier} for order ${orderId}`,
-      );
-      await this.orderService.markServerActive(serverId, ptServer.identifier);
-      await job?.updateProgress(50);
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Unknown error';
-      this.logger.error(
-        `Failed to provision server for order ${orderId}: ${message}`,
-      );
-      await this.orderService.markServerFailed(serverId);
-      throw new Error(`Provisioning failed: ${message}`);
-    }
+          const ptServer = await this.ptClient.createServerWithRetry(options);
+
+          span.setAttribute('server.ptId', ptServer.identifier);
+          span.setAttribute('server.uuid', ptServer.uuid);
+
+          this.logger.log(
+            `Provisioned server ${ptServer.identifier} for order ${orderId}`,
+          );
+          await this.orderService.markServerActive(
+            serverId,
+            ptServer.identifier,
+            ptServer.id,
+          );
+
+          await job.updateData({
+            ...job.data,
+            ptServerId: ptServer.identifier,
+            ptAdminId: ptServer.id,
+          });
+
+          await job.updateProgress(50);
+          return ptServer.identifier;
+        } catch (error) {
+          if (error instanceof Error) {
+            span.recordException(error);
+          }
+          const message =
+            error instanceof Error ? error.message : 'Unknown error';
+          this.logger.error(
+            `Failed to provision server for order ${orderId}: ${message}`,
+          );
+          await this.orderService.markServerFailed(serverId);
+          throw new Error(`Provisioning failed: ${message}`);
+        } finally {
+          span.end();
+        }
+      },
+    );
   }
 }

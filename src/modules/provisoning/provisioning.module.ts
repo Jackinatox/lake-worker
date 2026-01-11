@@ -8,11 +8,13 @@ import { OrderService } from './services/order.service';
 import { PterodactylClientService } from './services/pterodactyl-client.service';
 import { EnvironmentModule } from '../pterodactyl/Environment/environment.module';
 import { CoreModule } from 'src/core/core.module';
+import { PortsModule } from '../pterodactyl/Ports/pterodactyl.module';
 
 @Module({
   imports: [
     CoreModule,
     EnvironmentModule,
+    PortsModule,
     BullModule.registerQueue({
       name: 'provisioning',
     }),

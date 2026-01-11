@@ -42,6 +42,9 @@ export class ProvisioningProcessor extends WorkerHost {
 
       return tracer.startActiveSpan('provision-server-worker', async (span) => {
         try {
+          span.setAttribute('order.id', orderId);
+          span.setAttribute('job.id', job.id || 'unknown');
+
           this.logger.log(`Processing job ${job.id} for order ${orderId}`);
 
           // Fetch full order with relations
@@ -58,9 +61,16 @@ export class ProvisioningProcessor extends WorkerHost {
             throw new Error(`Order ${orderId} not found`);
           }
 
+          span.setAttribute('user.id', order.userId);
+          span.setAttribute('game.id', order.creationGameData?.id || -1);
+          span.setAttribute(
+            'game.name',
+            order.creationGameData?.name || 'unknown',
+          );
+
           await job.updateProgress(10);
 
-          await this.pterodactyl.provisionServer(order);
+          await this.pterodactyl.provisionServer(order, job);
 
           await job.updateProgress(50);
 
@@ -85,11 +95,13 @@ export class ProvisioningProcessor extends WorkerHost {
             `Failed to provision server for order ${orderId}`,
             error,
           );
-          span.recordException(error);
-          span.setStatus({
-            code: SpanStatusCode.ERROR,
-            message: JSON.stringify(error),
-          });
+          if (error instanceof Error) {
+            span.recordException(error);
+            span.setStatus({
+              code: SpanStatusCode.ERROR,
+              message: error.message,
+            });
+          }
           throw error;
         } finally {
           span.end();

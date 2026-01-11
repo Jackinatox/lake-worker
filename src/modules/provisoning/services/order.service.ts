@@ -102,13 +102,17 @@ export class OrderService {
     return dbServer.id;
   }
 
-  async markServerActive(serverId: string, ptServerId: string): Promise<void> {
+  async markServerActive(
+    serverId: string,
+    ptServerId: string,
+    ptAdminId: number,
+  ): Promise<void> {
     await this.prisma.gameServer.update({
       where: { id: serverId },
-      data: { ptServerId, status: 'ACTIVE' },
+      data: { ptServerId, status: 'ACTIVE', ptAdminId: ptAdminId },
     });
     this.logger.log(
-      `Server ${serverId} marked as ACTIVE with PT ID ${ptServerId}`,
+      `Server ${serverId} marked as ACTIVE with PT ID ${ptServerId} and PT Admin ID ${ptAdminId}`,
     );
   }
 

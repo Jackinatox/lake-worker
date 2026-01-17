@@ -1,5 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { PterodactylPortService } from './pterodactylPort.service';
+import { PterodactylPortService } from './port.service';
 
 describe('PterodactylService', () => {
   let service: PterodactylPortService;

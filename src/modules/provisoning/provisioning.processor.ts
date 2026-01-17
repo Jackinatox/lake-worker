@@ -72,18 +72,6 @@ export class ProvisioningProcessor extends WorkerHost {
 
           await this.pterodactyl.provisionServer(order, job);
 
-          await job.updateProgress(50);
-
-          // Create GameServer record in database
-
-          await job.updateProgress(80);
-
-          // Link the server to the order
-          // await this.prisma.gameServerOrder.update({
-          //   where: { id: orderId },
-          //   data: { gameServerId: gameServer.id },
-          // });
-
           await job.updateProgress(100);
 
           // this.logger.log(

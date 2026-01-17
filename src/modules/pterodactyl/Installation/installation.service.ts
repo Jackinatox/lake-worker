@@ -8,10 +8,25 @@ import { trace, Span } from '@opentelemetry/api';
 export class InstallationService {
   private readonly logger = new Logger(InstallationService.name);
   private readonly tracer = trace.getTracer('InstallationService', '1.0.0');
-  private readonly ptUrl = process.env.PTERODACTYL_PANEL_URL!;
+  private readonly ptUrl = process.env.PTERODACTYL_URL!;
   private readonly ptAdminKey = process.env.PTERODACTYL_API_KEY!;
 
   constructor() {}
+
+  async triggerInstallation(ptAdminId: string): Promise<boolean> {
+    return this.tracer.startActiveSpan(
+      'triggerInstallation',
+      async (span: Span) => {
+        span.setAttribute('server.ptAdminId', ptAdminId);
+
+        const result = await withRetry(() => this.reinstallServer(ptAdminId));
+
+        span.setAttribute('install.success', result);
+        span.end();
+        return result;
+      },
+    );
+  }
 
   async toggleScripts(
     ptAdminId: string,
@@ -135,6 +150,65 @@ export class InstallationService {
             'GAME_SERVER',
             {
               details: { ptAdminId, docker_image, error },
+            },
+          );
+          span.end();
+          return false;
+        }
+        span.end();
+        return true;
+      },
+    );
+  }
+
+  private async reinstallServer(ptAdminId: string): Promise<boolean> {
+    return this.tracer.startActiveSpan(
+      'reinstallServer',
+      async (span: Span) => {
+        span.setAttribute('server.ptAdminId', ptAdminId);
+
+        try {
+          const response = await fetch(
+            `${this.ptUrl}/api/application/servers/${ptAdminId}/reinstall`,
+            {
+              method: 'POST',
+              headers: {
+                Authorization: `Bearer ${this.ptAdminKey}`,
+                Accept: 'application/json',
+                'Content-Type': 'application/json',
+              },
+            },
+          );
+
+          if (!response.ok) {
+            const errorData = await response.text();
+            span.setAttribute('error', errorData);
+            span.setAttribute('response.status', response.status);
+            this.logger.error(
+              'Failed to trigger server reinstall',
+              'GAME_SERVER',
+              {
+                details: {
+                  ptAdminId,
+                  status: response.status,
+                  error: errorData,
+                },
+              },
+            );
+            span.end();
+            return false;
+          }
+
+          span.setAttribute('reinstall.success', true);
+        } catch (error) {
+          if (error instanceof Error) {
+            span.recordException(error);
+          }
+          this.logger.error(
+            'Failed to trigger server reinstall',
+            'GAME_SERVER',
+            {
+              details: { ptAdminId, error },
             },
           );
           span.end();

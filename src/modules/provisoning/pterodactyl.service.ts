@@ -15,7 +15,9 @@ import { MinecraftGameId, SatisfactoryGameId } from 'src/lib/GlobalConsstants';
 import { SatisfactoryConfig } from '../pterodactyl/Environment/GameConfig';
 import { Span, trace } from '@opentelemetry/api';
 import { LoggerService } from 'src/core/logger.service';
-import { PterodactylPortService } from '../pterodactyl/Ports/pterodactylPort.service';
+import { PterodactylPortService } from '../pterodactyl/Ports/port.service';
+import { InstallationService } from '../pterodactyl/Installation/installation.service';
+import { Server } from '@avionrx/pterodactyl-js';
 
 @Injectable()
 export class PterodactylService {
@@ -27,6 +29,7 @@ export class PterodactylService {
     private readonly envService: EnvironmentService,
     private readonly logger: LoggerService,
     private readonly ports: PterodactylPortService,
+    private readonly installation: InstallationService,
   ) {}
 
   async provisionServer(order: GameServerOrder, job: Job): Promise<string> {
@@ -53,21 +56,42 @@ export class PterodactylService {
 
       span.setAttribute('server.dbId', serverId);
 
-      const ptId = await this.createPterodactylServer(
+      const ptServer = await this.createPterodactylServer(
         serverOptions,
         serverId,
         String(validatedOrder.id),
         job,
       );
+      await job.updateProgress(60);
 
-      span.setAttribute('server.ptId', ptId);
+      span.setAttribute('server.ptId', ptServer.identifier);
 
       await this.ports.correctPorts(
-        ptId,
+        ptServer.identifier,
         order.creationGameDataId || 1,
         order.user,
       );
 
+      await job.updateProgress(70);
+
+      const scriptsEnabled = await this.installation.toggleScripts(
+        ptServer.id.toString(),
+        false,
+      );
+      span.setAttribute('install.scriptsEnabled', scriptsEnabled);
+
+      await job.updateProgress(75);
+
+      const reinstallSuccessfull = await this.installation.triggerInstallation(
+        ptServer.id.toString(),
+      );
+
+      span.setAttribute('install.reinstallSuccessfull', reinstallSuccessfull);
+      await job.updateProgress(90);
+
+      this.logger.log(
+        `Provisioned server ${ptServer.identifier} (DB ID: ${serverId}) for order ${order.id}`,
+      );
       span.end();
       return serverId;
     });
@@ -129,7 +153,7 @@ export class PterodactylService {
     serverId: string,
     orderId: string,
     job: Job,
-  ): Promise<string> {
+  ): Promise<Server> {
     return await this.tracer.startActiveSpan(
       'createServerPT',
       async (span: Span) => {
@@ -159,7 +183,7 @@ export class PterodactylService {
           });
 
           await job.updateProgress(50);
-          return ptServer.identifier;
+          return ptServer;
         } catch (error) {
           if (error instanceof Error) {
             span.recordException(error);

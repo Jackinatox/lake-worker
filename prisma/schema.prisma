@@ -25,6 +25,8 @@ model GameData {
   GameServer GameServer[]
 
   ServerOrder GameServerOrder[]
+
+  gameDataFeatures GameDataFeature[]
 }
 
 model Location {
@@ -319,6 +321,36 @@ enum WorkerJobType {
   CHECK_NEW_VERSIONS
 }
 
+enum JobRunStatus {
+  RUNNING
+  COMPLETED
+  FAILED
+  CANCELLED
+}
+
+model JobRun {
+  id        String        @id @default(cuid())
+  jobType   WorkerJobType
+  status    JobRunStatus  @default(RUNNING)
+  startedAt DateTime      @default(now())
+  endedAt   DateTime?
+
+  // Results
+  itemsProcessed Int     @default(0)
+  itemsTotal     Int     @default(0)
+  itemsFailed    Int     @default(0)
+  errorMessage   String?
+  errorStack     String?
+  metadata       Json? // Additional context like thresholds, config used
+
+  // Relations
+  logs WorkerLog[]
+
+  @@index([jobType, status])
+  @@index([startedAt])
+  @@index([status])
+}
+
 model WorkerLog {
   id      Int           @id @default(autoincrement())
   jobType WorkerJobType
@@ -334,11 +366,16 @@ model WorkerLog {
   userId String?
   user   User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
 
+  // Relation to JobRun
+  jobRunId String?
+  jobRunRecord  JobRun? @relation(fields: [jobRunId], references: [id], onDelete: SetNull)
+
   createdAt DateTime @default(now())
 
   @@index([jobType, level, createdAt])
   @@index([gameServerId])
   @@index([userId])
+  @@index([jobRunId])
 }
 
 enum LogType {
@@ -475,4 +512,20 @@ model TwoFactor {
   @@index([secret])
   @@index([userId])
   @@map("twoFactor")
+}
+
+model EggFeature {
+  id               Int               @id @default(autoincrement())
+  name             String
+  gameDataFeatures GameDataFeature[]
+}
+
+model GameDataFeature {
+  gameDataId Int
+  gameData   GameData   @relation(fields: [gameDataId], references: [id], onDelete: Restrict)
+  featureId  Int
+  feature    EggFeature @relation(fields: [featureId], references: [id], onDelete: Restrict)
+
+  @@id([gameDataId, featureId])
+  @@index([gameDataId])
 }

@@ -5,6 +5,7 @@ import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { CoreModule } from './core/core.module';
 import { ProvisioningModule } from './modules/provisoning/provisioning.module';
+import { JobsModule } from './modules/jobs/jobs.module';
 
 @Module({
   imports: [
@@ -18,6 +19,7 @@ import { ProvisioningModule } from './modules/provisoning/provisioning.module';
       defaultJobOptions: { attempts: 3, delay: 5000 },
     }),
     ProvisioningModule,
+    JobsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

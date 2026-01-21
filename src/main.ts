@@ -30,7 +30,7 @@ async function bootstrap() {
     type: VersioningType.URI,
   });
 
-  const port = process.env.PORT ?? 3002;
+  const port = process.env.PORT ?? 3000;
   await app.listen(port);
   logger.log(`Application is running on port ${port}`);
 }

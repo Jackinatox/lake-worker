@@ -1,6 +1,11 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { trace } from '@opentelemetry/api';
 import { User } from 'src/generated/prisma/client';
+import {
+  HytaleGameId,
+  MinecraftGameId,
+  SatisfactoryGameId,
+} from 'src/lib/GlobalConsstants';
 
 interface AllocationAttributes {
   id: number;
@@ -392,16 +397,26 @@ export class PterodactylPortService {
       );
 
       const GAME_PORT_CONFIG = {
-        1: {
+        [MinecraftGameId]: {
           requiredAllocations: 1,
           ports: [],
         },
-        2: {
+        [SatisfactoryGameId]: {
           requiredAllocations: 2,
           ports: [
             {
               envVar: 'RELIABLE_PORT',
               notes: 'Satisfactory Reliable Port',
+              isSecondary: true,
+            },
+          ],
+        },
+        [HytaleGameId]: {
+          requiredAllocations: 2,
+          ports: [
+            {
+              envVar: 'QUERY_PORT',
+              notes: 'Hytale Source Query Port',
               isSecondary: true,
             },
           ],

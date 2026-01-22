@@ -1,4 +1,3 @@
-//TODO: Migrate to Consts form Database/Redis
 // Eggs
 export const PaperEggId = 1;
 export const VanillaEggId = 2;
@@ -12,6 +11,7 @@ export const FactorioEggId = 22;
 export const MinecraftGameId = 1;
 export const SatisfactoryGameId = 2;
 export const FactorioGameId = 3;
+export const HytaleGameId = 4;
 
 // Legal Content Keys
 export const LEGAL_IMPRESSUM_DE = 'legal_impressum_de';
@@ -38,3 +38,8 @@ export const FTP_PASSWORD_MAX_LENGTH = 64;
 
 export const MAX_EDITABLE_FILE_SIZE = 2 * 1024 * 1024;
 export const MAX_EDITABLE_FILE_SIZE_LABEL = '2 MB';
+
+// Egg Features
+export const EGG_FEATURE_MINECRAFT_EULA = 'Minecraft Eula';
+export const EGG_FEATURE_JAVA_VERSION = 'Java Version';
+export const EGG_FEATURE_HYTALE_OAUTH = 'HytaleOAuth';

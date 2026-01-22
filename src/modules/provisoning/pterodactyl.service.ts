@@ -11,8 +11,15 @@ import {
 } from './services/order.service';
 import { PterodactylClientService } from './services/pterodactyl-client.service';
 import { EnvironmentService } from '../pterodactyl/Environment/environment.service';
-import { MinecraftGameId, SatisfactoryGameId } from 'src/lib/GlobalConsstants';
-import { SatisfactoryConfig } from '../pterodactyl/Environment/GameConfig';
+import {
+  HytaleGameId,
+  MinecraftGameId,
+  SatisfactoryGameId,
+} from 'src/lib/GlobalConsstants';
+import {
+  HytaleConfig,
+  SatisfactoryConfig,
+} from '../pterodactyl/Environment/GameConfig';
 import { Span, trace } from '@opentelemetry/api';
 import { LoggerService } from 'src/core/logger.service';
 import { PterodactylPortService } from '../pterodactyl/Ports/port.service';
@@ -134,6 +141,10 @@ export class PterodactylService {
       case SatisfactoryGameId:
         return this.envService.satisfactory(
           gameConfig.gameSpecificConfig as SatisfactoryConfig,
+        ) as EnvironmentConfig;
+      case HytaleGameId:
+        return this.envService.hytale(
+          gameConfig.gameSpecificConfig as HytaleConfig,
         ) as EnvironmentConfig;
       default:
         throw new Error(`Unsupported game ID: ${gameId}`);

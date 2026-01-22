@@ -6,7 +6,7 @@ import {
   PaperEggId,
   VanillaEggId,
 } from 'src/lib/GlobalConsstants';
-import { SatisfactoryConfig } from './GameConfig';
+import { HytaleConfig, SatisfactoryConfig } from './GameConfig';
 
 @Injectable()
 export class EnvironmentService {
@@ -89,6 +89,22 @@ export class EnvironmentService {
         './Engine/Binaries/Linux/*-Linux-Shipping FactoryGame ?listen -Port={{SERVER_PORT}} -ReliablePort={{RELIABLE_PORT}}',
     };
 
+    return startAndVars;
+  }
+  hytale(gameConfig: HytaleConfig): any {
+    const startAndVars = {
+      environment: {
+        HYTALE_AUTH_MODE: gameConfig.auth_mode,
+        HYTALE_PATCHLINE: gameConfig.patchline,
+        HYTALE_ACCEPT_EARLY_PLUGINS: gameConfig.accept_early_plugins,
+        HYTALE_ALLOW_OP: gameConfig.allow_op,
+        INSTALL_SOURCEQUERY_PLUGIN: gameConfig.install_sourcequery_plugin,
+        DISABLE_SENTRY: gameConfig.disable_sentry,
+        USE_AOT_CACHE: gameConfig.use_aot_cache,
+      },
+      startup:
+        'java $( ((USE_AOT_CACHE)) && printf %s "-XX:AOTCache=Server/HytaleServer.aot" ) -Xms128M $( ((SERVER_MEMORY)) && printf %s "-Xmx${SERVER_MEMORY}M" ) -jar Server/HytaleServer.jar $( ((HYTALE_ALLOW_OP)) && printf %s "--allow-op" ) $( ((HYTALE_ACCEPT_EARLY_PLUGINS)) && printf %s "--accept-early-plugins" ) $( ((DISABLE_SENTRY)) && printf %s "--disable-sentry" ) --auth-mode ${HYTALE_AUTH_MODE} --assets Assets.zip --bind 0.0.0.0:${SERVER_PORT}',
+    };
     return startAndVars;
   }
 }

@@ -119,7 +119,7 @@ export class PterodactylService {
     return new ServerOptionsBuilder()
       .setName(serverName)
       .setUser(order.user.ptUserId)
-      .setEgg(parseInt(gameConfig.eggId))
+      .setEgg(gameConfig.eggId)
       .setDockerImage(gameConfig.dockerImage)
       .setResources(order.cpuPercent, order.ramMB)
       .setLocation(order.creationLocation!.ptLocationId)
@@ -135,8 +135,8 @@ export class PterodactylService {
     switch (gameId) {
       case MinecraftGameId:
         return this.envService.minecraft(
-          parseInt(gameConfig.eggId),
-          gameConfig.version as string,
+          gameConfig.eggId,
+          gameConfig.version,
         ) as EnvironmentConfig;
       case SatisfactoryGameId:
         return this.envService.satisfactory(

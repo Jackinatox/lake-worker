@@ -35,14 +35,6 @@ export class QueueProvisionService {
       throw new NotFoundException(`Order with ID ${orderId} not found`);
     }
 
-    // Validate the order status is PAID
-    if (order.status !== 'PAID') {
-      this.logger.warn(`Order with ID ${orderId} is not in PAID status`);
-      throw new BadRequestException(
-        `Order must be in PAID status. Current status: ${order.status}`,
-      );
-    }
-
     // Add the job to the queue
     const job = await this.provisioningQueue.add(
       'provision-server',

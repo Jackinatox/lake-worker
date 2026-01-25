@@ -2,7 +2,6 @@ import {
   Body,
   Controller,
   Get,
-  Headers,
   HttpCode,
   HttpStatus,
   NotFoundException,
@@ -14,6 +13,8 @@ import { QueueProvisionService } from './queuing.service';
 import { trace } from '@opentelemetry/api';
 import { Queue } from 'bullmq';
 import { InjectQueue } from '@nestjs/bullmq';
+import { ChangeGameDto } from './dto/ChangeGameDto';
+import { ChangeGameService } from './services/change-game.service';
 
 @Controller({
   path: 'queue',
@@ -22,6 +23,7 @@ import { InjectQueue } from '@nestjs/bullmq';
 export class ProvisioningController {
   constructor(
     private provisioningService: QueueProvisionService,
+    private changeGameService: ChangeGameService,
     @InjectQueue('provisioning') private provisioningQueue: Queue,
   ) {}
 
@@ -67,5 +69,17 @@ export class ProvisioningController {
         progress: job.progress,
       };
     }
+  }
+
+  @Post('changeGame')
+  @HttpCode(HttpStatus.OK)
+  async changeGame(@Body() dto: ChangeGameDto) {
+    return this.changeGameService.changeGame({
+      serverId: dto.serverId,
+      gameId: dto.gameId,
+      gameConfig: dto.gameConfig,
+      deleteFiles: dto.deleteFiles,
+      userId: dto.userId,
+    });
   }
 }

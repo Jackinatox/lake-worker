@@ -1,6 +1,12 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from 'src/core/prisma.service';
 import { GameServerType, OrderType, Prisma } from 'src/generated/prisma/client';
+import {
+  FactorioConfig,
+  HytaleConfig,
+  MinecraftConfig,
+  SatisfactoryConfig,
+} from 'src/modules/pterodactyl/Environment/GameConfig';
 
 export type GameServerOrder = Prisma.GameServerOrderGetPayload<{
   include: {
@@ -16,9 +22,15 @@ export interface ValidatedOrder {
 }
 
 export interface GameConfigBase {
-  eggId: string;
+  gameId: number;
+  eggId: number;
+  version: string;
   dockerImage: string;
-  [key: string]: unknown;
+  gameSpecificConfig:
+    | SatisfactoryConfig
+    | MinecraftConfig
+    | FactorioConfig
+    | HytaleConfig;
 }
 
 const ORDER_TYPE_TO_SERVER_TYPE: Record<OrderType, GameServerType> = {
@@ -59,7 +71,7 @@ export class OrderService {
 
     return {
       order: order as GameServerOrder,
-      gameConfig: order.gameConfig as GameConfigBase,
+      gameConfig: order.gameConfig as any as GameConfigBase,
     };
   }
 

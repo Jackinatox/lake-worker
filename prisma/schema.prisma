@@ -24,8 +24,7 @@ model GameData {
 
   GameServer GameServer[]
 
-  ServerOrder GameServerOrder[]
-
+  ServerOrder      GameServerOrder[]
   gameDataFeatures GameDataFeature[]
 }
 
@@ -139,6 +138,8 @@ model GameServerOrder {
   userId String
   user   User   @relation(fields: [userId], references: [id], onDelete: Restrict) // Restrict deletion to preserve order history for compliance/auditing
 
+  workerJobId String? // Job that processed this order
+
   type       OrderType
   ramMB      Int
   cpuPercent Int
@@ -170,7 +171,6 @@ enum OrderStatus {
   PAYMENT_FAILED // Stripe weebhook said order failed   
   EXPIRED // Just to keep the entry, i dont know why yet
 }
-
 
 enum OrderType {
   NEW
@@ -367,8 +367,8 @@ model WorkerLog {
   user   User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
 
   // Relation to JobRun
-  jobRunId String?
-  jobRunRecord  JobRun? @relation(fields: [jobRunId], references: [id], onDelete: SetNull)
+  jobRunId     String?
+  jobRunRecord JobRun? @relation(fields: [jobRunId], references: [id], onDelete: SetNull)
 
   createdAt DateTime @default(now())
 

@@ -7,7 +7,7 @@ import * as nodemailer from 'nodemailer';
 import type { Transporter } from 'nodemailer';
 
 @Injectable()
-export class EmailService {
+export class EmailTransportService {
   private transporter: Transporter;
 
   constructor(
@@ -33,6 +33,7 @@ export class EmailService {
     const smtpUser = this.config.get<string>('SMTP_USER');
 
     try {
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
       const response = await this.transporter.sendMail({
         from: `"Scyed" <${smtpUser}>`,
         to: email.recipient,
@@ -53,6 +54,7 @@ export class EmailService {
       this.logger.log(`Email sent to ${email.recipient}`, {
         emailId: email.id,
         type: email.type,
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
         messageId: response.messageId,
       });
 

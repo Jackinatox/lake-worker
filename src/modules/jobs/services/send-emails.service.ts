@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { WorkerJobType } from 'src/generated/prisma/client';
 import { JobRunService } from '../services/job-run.service';
-import { EmailService } from '../services/email.service';
+import { EmailTransportService } from './emailTransport.service';
 import {
   DEFAULT_BATCH_SIZE,
   EMAIL_THROTTLE_MS,
@@ -11,7 +11,7 @@ import {
 export class SendEmailsService {
   constructor(
     private readonly jobRunService: JobRunService,
-    private readonly emailService: EmailService,
+    private readonly emailService: EmailTransportService,
   ) {}
 
   /**

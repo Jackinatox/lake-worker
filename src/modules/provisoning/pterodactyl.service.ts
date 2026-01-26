@@ -25,6 +25,7 @@ import { LoggerService } from 'src/core/logger.service';
 import { PterodactylPortService } from '../pterodactyl/Ports/port.service';
 import { InstallationService } from '../pterodactyl/Installation/installation.service';
 import { Server } from '@avionrx/pterodactyl-js';
+import { EmailService } from '../email/email.service';
 
 @Injectable()
 export class PterodactylService {
@@ -37,6 +38,7 @@ export class PterodactylService {
     private readonly logger: LoggerService,
     private readonly ports: PterodactylPortService,
     private readonly installation: InstallationService,
+    private readonly emailService: EmailService,
   ) {}
 
   async provisionServer(order: GameServerOrder, job: Job): Promise<string> {
@@ -95,6 +97,25 @@ export class PterodactylService {
 
       span.setAttribute('install.reinstallSuccessfull', reinstallSuccessfull);
       await job.updateProgress(90);
+
+      const gameName = validatedOrder.creationGameData!.name;
+      await this.emailService.sendServerBookingConfirmationEmail(
+        order.user.email,
+        {
+          userName: order.user.name,
+          gameName: gameName,
+          gameImageUrl: `${process.env.WEB_APP_URL}/images/light/games/icons/${gameName.toLowerCase()}.webp`,
+          serverName: serverOptions.name,
+          serverUrl: `${process.env.WEB_APP_URL}/server/${ptServer.identifier}`,
+          cpuVCores: validatedOrder.cpuPercent / 100,
+          ramMB: validatedOrder.ramMB,
+          diskMB: validatedOrder.diskMB,
+          expiresAt: validatedOrder.expiresAt,
+          price: validatedOrder.price,
+          location:
+            validatedOrder.creationLocation?.name || 'Unbekannter Standort',
+        },
+      );
 
       this.logger.log(
         `Provisioned server ${ptServer.identifier} (DB ID: ${serverId}) for order ${order.id}`,

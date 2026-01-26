@@ -72,7 +72,7 @@ export class ProvisioningProcessor extends WorkerHost {
 
           await this.pterodactyl.provisionServer(order, job);
 
-          await job.updateProgress(100);
+          await job.updateProgress(99);
 
           // this.logger.log(
           //   `Successfully provisioned server ${serverId} for order ${orderId}`,

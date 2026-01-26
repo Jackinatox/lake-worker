@@ -6,7 +6,7 @@ import {
   GameServerStatus,
 } from 'src/generated/prisma/client';
 import { JobRunService } from '../services/job-run.service';
-import { EmailService } from '../services/email.service';
+import { EmailTransportService } from './emailTransport.service';
 import { EmailTemplateService } from '../services/email-template.service';
 import { DELETE_GAMESERVER_AFTER_DAYS } from '../constants/worker.constants';
 
@@ -15,7 +15,7 @@ export class GenerateDeletionEmailsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly jobRunService: JobRunService,
-    private readonly emailService: EmailService,
+    private readonly emailService: EmailTransportService,
     private readonly templateService: EmailTemplateService,
   ) {}
 

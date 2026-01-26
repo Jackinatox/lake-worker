@@ -5,7 +5,7 @@ import { ConfigModule } from '@nestjs/config';
 // Services
 import { JobRunService } from './services/job-run.service';
 import { NotificationService } from './services/notification.service';
-import { EmailService } from './services/email.service';
+import { EmailTransportService } from './services/emailTransport.service';
 import { EmailTemplateService } from './services/email-template.service';
 import { ExpireServersService } from './services/expire-servers.service';
 import { DeleteServersService } from './services/delete-servers.service';
@@ -26,7 +26,7 @@ import { JobsController } from './controllers/jobs.controller';
     // Core services
     JobRunService,
     NotificationService,
-    EmailService,
+    EmailTransportService,
     EmailTemplateService,
 
     // Job services
@@ -42,7 +42,7 @@ import { JobsController } from './controllers/jobs.controller';
   exports: [
     JobRunService,
     NotificationService,
-    EmailService,
+    EmailTransportService,
     EmailTemplateService,
   ],
 })

@@ -11,6 +11,7 @@ import { CoreModule } from 'src/core/core.module';
 import { EnvironmentModule } from '../pterodactyl/Environment/environment.module';
 import { PortsModule } from '../pterodactyl/Ports/port.module';
 import { InstallationModule } from '../pterodactyl/Installation/installation.module';
+import { EmailModule } from '../email/email.module';
 
 @Module({
   imports: [
@@ -21,6 +22,7 @@ import { InstallationModule } from '../pterodactyl/Installation/installation.mod
     BullModule.registerQueue({
       name: 'provisioning',
     }),
+    EmailModule,
   ],
   controllers: [ProvisioningController],
   providers: [

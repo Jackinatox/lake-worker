@@ -82,10 +82,7 @@ export class JobScheduler {
     });
   }
 
-  /**
-   * Generate deletion reminder emails - runs every day at 9:00 AM
-   */
-  @Cron('0 9 * * *')
+  @Cron(CronExpression.EVERY_10_MINUTES)
   async handleGenerateDeletionEmails(): Promise<void> {
     await this.runJob('GenerateDeletionEmails', async () => {
       const result = await this.generateDeletionEmails.run();

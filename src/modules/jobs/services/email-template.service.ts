@@ -1,14 +1,11 @@
 import { Injectable } from '@nestjs/common';
 import { render } from '@react-email/render';
-import {
-  APP_URL,
-  DELETE_GAMESERVER_AFTER_DAYS,
-} from '../constants/worker.constants';
 
 // Email template components will be created as React components
 import ExpiresInXDaysTemplate from '../templates/ExpiresInXDays';
 import DeleteInXDaysTemplate from '../templates/DeleteInXDays';
 import ServerExpiredTemplate from '../templates/ServerExpired';
+import ServerBookingConfirmationTemplate from '../templates/ServerBookingConfirmation';
 
 @Injectable()
 export class EmailTemplateService {
@@ -83,6 +80,24 @@ export class EmailTemplateService {
         isFreeServer: params.isFreeServer,
       }),
     );
+    return html;
+  }
+
+  async renderServerBookinConfirmation(params: {
+    userName: string;
+    userEmail: string;
+    gameName: string;
+    gameImageUrl: string;
+    serverName: string;
+    ramMB: number;
+    cpuVCores: number;
+    diskMB: number;
+    location: string;
+    price: number;
+    expiresAt: Date;
+    serverUrl: string;
+  }): Promise<string> {
+    const html = await render(ServerBookingConfirmationTemplate(params));
     return html;
   }
 }

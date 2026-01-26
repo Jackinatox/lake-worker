@@ -17,7 +17,6 @@ export default function DeleteInXDaysTemplate({
   serverName,
   expirationDate,
   deletionDate,
-  deletionDays,
   serverId,
 }: DeleteServerTemplateProps): React.ReactElement {
   const formattedExpirationDate = new Intl.DateTimeFormat('de-DE', {

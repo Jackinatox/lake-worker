@@ -16,6 +16,7 @@ export interface ServerBookingConfirmationTemplateProps {
   price: number;
   expiresAt: Date;
   serverUrl: string;
+  isFreeServer: boolean;
 }
 
 const formatPrice = (cents: number) => {
@@ -37,6 +38,7 @@ export default function ServerBookingConfirmationTemplate({
   price,
   expiresAt,
   serverUrl,
+  isFreeServer,
 }: ServerBookingConfirmationTemplateProps): React.ReactElement {
   const formattedExpiresAt = new Intl.DateTimeFormat('de-DE', {
     day: '2-digit',
@@ -47,6 +49,7 @@ export default function ServerBookingConfirmationTemplate({
   }).format(expiresAt);
 
   const previewText = `Dein ${gameName} Server wurde erfolgreich gebucht!`;
+  const actionLabel = isFreeServer ? 'Server verlängern' : 'Server verwalten';
 
   return (
     <EmailLayout preview={previewText}>
@@ -149,27 +152,41 @@ export default function ServerBookingConfirmationTemplate({
         </table>
       </Section>
 
-      <Section className="mt-6 rounded-lg border border-blue-200 bg-blue-50 p-4">
-        <table className="w-full" cellPadding="0" cellSpacing="0">
-          <tbody>
-            <tr>
-              <td className="text-base font-semibold text-slate-900">
-                Gesamtbetrag:
-              </td>
-              <td className="text-right text-xl font-bold text-slate-900">
-                {formatPrice(price)}
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </Section>
+      {isFreeServer ? (
+        <Section className="mt-6 rounded-lg border border-emerald-200 bg-emerald-50 p-4">
+          <Text className="m-0 text-base font-semibold text-slate-900">
+            Kostenloser Server
+          </Text>
+          <Text className="mt-2 text-sm leading-5 text-slate-700">
+            Dein kostenloser Server kann aktuell nur in der Laufzeit verlängert
+            werden. Ein Upgrade auf einen bezahlten Server wird künftig
+            verfügbar sein.
+          </Text>
+          {/* TODO: Add paid upgrade CTA once the upgrade flow is available. */}
+        </Section>
+      ) : (
+        <Section className="mt-6 rounded-lg border border-blue-200 bg-blue-50 p-4">
+          <table className="w-full" cellPadding="0" cellSpacing="0">
+            <tbody>
+              <tr>
+                <td className="text-base font-semibold text-slate-900">
+                  Gesamtbetrag:
+                </td>
+                <td className="text-right text-xl font-bold text-slate-900">
+                  {formatPrice(price)}
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </Section>
+      )}
 
       <Section className="mt-6">
         <Button
           href={serverUrl}
           className="inline-block rounded-full bg-slate-900 px-6 py-3 text-base font-semibold text-white no-underline"
         >
-          Server verwalten
+          {actionLabel}
         </Button>
       </Section>
 

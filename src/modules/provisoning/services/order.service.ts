@@ -95,7 +95,7 @@ export class OrderService {
         status: 'CREATED',
         backupCount: 0, // Will be updated after PT server creation
         cpuPercent: order.cpuPercent,
-        diskMB: 0, // Will be updated after PT server creation
+        diskMB: order.diskMB,
         price: order.price,
         ramMB: order.ramMB,
         expires: order.expiresAt,
@@ -118,10 +118,16 @@ export class OrderService {
     serverId: string,
     ptServerId: string,
     ptAdminId: number,
+    orderId: number,
   ): Promise<void> {
     await this.prisma.gameServer.update({
       where: { id: serverId },
       data: { ptServerId, status: 'ACTIVE', ptAdminId: ptAdminId },
+    });
+
+    await this.prisma.gameServerOrder.update({
+      where: { id: orderId },
+      data: { gameServerId: serverId },
     });
     this.logger.log(
       `Server ${serverId} marked as ACTIVE with PT ID ${ptServerId} and PT Admin ID ${ptAdminId}`,

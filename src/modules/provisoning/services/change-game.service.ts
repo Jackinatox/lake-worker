@@ -7,9 +7,9 @@ import {
 import { PrismaService } from 'src/core/prisma.service';
 import { LoggerService } from 'src/core/logger.service';
 import { trace, Span } from '@opentelemetry/api';
-import { EnvironmentService } from 'src/modules/pterodactyl/Environment/environment.service';
-import { PterodactylPortService } from 'src/modules/pterodactyl/Ports/port.service';
-import { InstallationService } from 'src/modules/pterodactyl/Installation/installation.service';
+import { EnvironmentService } from '../../pterodactyl/Environment/environment.service';
+import { PterodactylPortService } from '../../pterodactyl/Ports/port.service';
+import { InstallationService } from '../../pterodactyl/Installation/installation.service';
 import {
   MinecraftGameId,
   SatisfactoryGameId,
@@ -18,7 +18,7 @@ import {
 import {
   HytaleConfig,
   SatisfactoryConfig,
-} from 'src/modules/pterodactyl/Environment/GameConfig';
+} from '../../pterodactyl/Environment/GameConfig';
 import type { GameConfigBase } from './order.service';
 
 interface ChangeGameInput {

@@ -96,6 +96,7 @@ export class EmailTemplateService {
     price: number;
     expiresAt: Date;
     serverUrl: string;
+    isFreeServer: boolean;
   }): Promise<string> {
     const html = await render(ServerBookingConfirmationTemplate(params));
     return html;

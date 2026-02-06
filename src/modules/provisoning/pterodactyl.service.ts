@@ -26,6 +26,7 @@ import { PterodactylPortService } from '../pterodactyl/Ports/port.service';
 import { InstallationService } from '../pterodactyl/Installation/installation.service';
 import { Server } from '@avionrx/pterodactyl-js';
 import { EmailService } from '../email/email.service';
+import { OrderType } from 'src/generated/prisma/client';
 
 @Injectable()
 export class PterodactylService {
@@ -68,7 +69,7 @@ export class PterodactylService {
       const ptServer = await this.createPterodactylServer(
         serverOptions,
         serverId,
-        String(validatedOrder.id),
+        validatedOrder.id,
         job,
       );
       await job.updateProgress(60);
@@ -99,6 +100,7 @@ export class PterodactylService {
       await job.updateProgress(90);
 
       const gameName = validatedOrder.creationGameData!.name;
+      const isFreeServer = validatedOrder.type === OrderType.FREE_SERVER;
       await this.emailService.sendServerBookingConfirmationEmail(
         order.user.email,
         {
@@ -114,6 +116,7 @@ export class PterodactylService {
           price: validatedOrder.price,
           location:
             validatedOrder.creationLocation?.name || 'Unbekannter Standort',
+          isFreeServer: isFreeServer,
         },
       );
 
@@ -183,7 +186,7 @@ export class PterodactylService {
   private async createPterodactylServer(
     options: ReturnType<ServerOptionsBuilder['build']>,
     serverId: string,
-    orderId: string,
+    orderId: number,
     job: Job,
   ): Promise<Server> {
     return await this.tracer.startActiveSpan(
@@ -206,6 +209,7 @@ export class PterodactylService {
             serverId,
             ptServer.identifier,
             ptServer.id,
+            orderId,
           );
 
           await job.updateData({

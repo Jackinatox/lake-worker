@@ -53,12 +53,10 @@ export class OrderService {
 
   constructor(private readonly prisma: PrismaService) {}
 
-  async getValidatedOrder(orderId: number): Promise<ValidatedOrder> {
+  async getValidatedOrder(orderId: string): Promise<ValidatedOrder> {
     const order = await this.prisma.gameServerOrder.findUniqueOrThrow({
       where: {
         id: orderId,
-        creationGameDataId: { not: null },
-        creationLocationId: { not: null },
       },
       include: {
         user: true,
@@ -88,7 +86,7 @@ export class OrderService {
   }
 
   async createGameServerRecord(order: GameServerOrder): Promise<string> {
-    const serverName = `${order.creationGameData!.name} Gameserver`;
+    const serverName = `${order.creationGameData.name} Gameserver`;
 
     const dbServer = await this.prisma.gameServer.create({
       data: {
@@ -98,10 +96,11 @@ export class OrderService {
         diskMB: order.diskMB,
         price: order.price,
         ramMB: order.ramMB,
+        allocations: order.allocations,
         expires: order.expiresAt,
         userId: order.user.id,
-        gameDataId: order.creationGameData!.id,
-        locationId: order.creationLocation!.ptLocationId,
+        gameDataId: order.creationGameData.id,
+        locationId: order.creationLocation.ptLocationId,
         gameConfig: order.gameConfig || undefined,
         name: serverName,
         type: ORDER_TYPE_TO_SERVER_TYPE[order.type],
@@ -118,7 +117,7 @@ export class OrderService {
     serverId: string,
     ptServerId: string,
     ptAdminId: number,
-    orderId: number,
+    orderId: string,
   ): Promise<void> {
     await this.prisma.gameServer.update({
       where: { id: serverId },

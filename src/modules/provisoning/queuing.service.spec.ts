@@ -75,7 +75,7 @@ describe('ProvisioningService', () => {
         .mockResolvedValue(mockOrder as any);
 
       // Act: Call the method we're testing
-      const result = await service.createProvisioningJob(1);
+      const result = await service.createProvisioningJob('1');
 
       // Assert: Verify the results
       // eslint-disable-next-line @typescript-eslint/unbound-method
@@ -112,10 +112,10 @@ describe('ProvisioningService', () => {
         .mockResolvedValue(null);
 
       // Act & Assert: Expect the method to throw
-      await expect(service.createProvisioningJob(999)).rejects.toThrow(
+      await expect(service.createProvisioningJob('999')).rejects.toThrow(
         NotFoundException,
       );
-      await expect(service.createProvisioningJob(999)).rejects.toThrow(
+      await expect(service.createProvisioningJob('999')).rejects.toThrow(
         'Order with ID 999 not found',
       );
     });
@@ -128,10 +128,10 @@ describe('ProvisioningService', () => {
         .mockResolvedValue(pendingOrder as any);
 
       // Act & Assert: Expect the method to throw
-      await expect(service.createProvisioningJob(1)).rejects.toThrow(
+      await expect(service.createProvisioningJob('1')).rejects.toThrow(
         BadRequestException,
       );
-      await expect(service.createProvisioningJob(1)).rejects.toThrow(
+      await expect(service.createProvisioningJob('1')).rejects.toThrow(
         'Order must be in PAID status',
       );
     });

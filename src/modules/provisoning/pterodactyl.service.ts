@@ -78,7 +78,7 @@ export class PterodactylService {
 
       await this.ports.correctPorts(
         ptServer.identifier,
-        order.creationGameDataId || 1,
+        order.creationGameDataId,
         order.user,
       );
 
@@ -99,7 +99,7 @@ export class PterodactylService {
       span.setAttribute('install.reinstallSuccessfull', reinstallSuccessfull);
       await job.updateProgress(90);
 
-      const gameName = validatedOrder.creationGameData!.name;
+      const gameName = validatedOrder.creationGameData.name;
       const isFreeServer = validatedOrder.type === OrderType.FREE_SERVER;
       await this.emailService.sendServerBookingConfirmationEmail(
         order.user.email,
@@ -132,9 +132,9 @@ export class PterodactylService {
     order: GameServerOrder,
     gameConfig: GameConfigBase,
   ) {
-    const gameId = order.creationGameData!.id;
+    const gameId = order.creationGameData.id;
     const environmentConfig = this.getEnvironmentConfig(gameId, gameConfig);
-    const serverName = `${order.creationGameData!.name} Gameserver`;
+    const serverName = `${order.creationGameData.name} Gameserver`;
 
     if (!order.user.ptUserId) {
       throw new Error(`User ${order.userId} has no Pterodactyl user ID`);
@@ -146,7 +146,7 @@ export class PterodactylService {
       .setEgg(gameConfig.eggId)
       .setDockerImage(gameConfig.dockerImage)
       .setResources(order.cpuPercent, order.ramMB)
-      .setLocation(order.creationLocation!.ptLocationId)
+      .setLocation(order.creationLocation.ptLocationId)
       .setEnvironment(environmentConfig)
       .setStartWhenInstalled(false)
       .build();
@@ -186,7 +186,7 @@ export class PterodactylService {
   private async createPterodactylServer(
     options: ReturnType<ServerOptionsBuilder['build']>,
     serverId: string,
-    orderId: number,
+    orderId: string,
     job: Job,
   ): Promise<Server> {
     return await this.tracer.startActiveSpan(

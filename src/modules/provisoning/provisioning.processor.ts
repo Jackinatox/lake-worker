@@ -11,7 +11,7 @@ import { PrismaService } from 'src/core/prisma.service';
 import { PterodactylService } from './pterodactyl.service';
 
 interface ProvisioningJobData {
-  orderId: number;
+  orderId: string;
   traceparent?: string;
 }
 
@@ -62,11 +62,8 @@ export class ProvisioningProcessor extends WorkerHost {
           }
 
           span.setAttribute('user.id', order.userId);
-          span.setAttribute('game.id', order.creationGameData?.id || -1);
-          span.setAttribute(
-            'game.name',
-            order.creationGameData?.name || 'unknown',
-          );
+          span.setAttribute('game.id', order.creationGameData.id);
+          span.setAttribute('game.name', order.creationGameData.name);
 
           await job.updateProgress(10);
 

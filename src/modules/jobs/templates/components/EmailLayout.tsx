@@ -29,9 +29,8 @@ export function EmailLayout({
       <Tailwind>
         <Body
           style={{
-            backgroundColor: '#eef2f7',
             margin: 0,
-            padding: '18px 12px',
+            padding: '8px 4px',
           }}
         >
           <Container
@@ -39,11 +38,7 @@ export function EmailLayout({
               margin: '0 auto',
               width: '100%',
               maxWidth: '620px',
-              backgroundColor: '#ffffff',
-              padding: '20px 18px',
-              borderRadius: '14px',
-              border: '1px solid #e2e8f0',
-              boxShadow: '0 16px 40px rgba(15, 23, 42, 0.06)',
+              padding: 0,
             }}
           >
             {children}

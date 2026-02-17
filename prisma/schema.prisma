@@ -17,6 +17,7 @@ datasource db {
 model GameData {
   id       Int     @id @default(autoincrement())
   name     String
+  slug     String  @unique
   data     Json?
   enabled  Boolean @default(false)
   featured Boolean @default(false)
@@ -24,8 +25,9 @@ model GameData {
 
   GameServer GameServer[]
 
-  ServerOrder      GameServerOrder[]
-  gameDataFeatures GameDataFeature[]
+  ServerOrder             GameServerOrder[]
+  gameDataFeatures        GameDataFeature[]
+  hardwareRecommendations HardwareRecommendation[]
 }
 
 model Location {
@@ -84,6 +86,7 @@ model GameServer {
   cpuPercent   Int
   diskMB       Int
   backupCount  Int
+  allocations  Int
   expires      DateTime
   price        Float // To let the user extend his server at the original price in case we increase prices
   type         GameServerType @default(CUSTOM)
@@ -130,13 +133,13 @@ enum GameServerStatus {
 }
 
 model GameServerOrder {
-  id Int @id @default(autoincrement())
+  id String @id @default(cuid(2))
 
   gameServerId String? // Null if Creation event
-  gameServer   GameServer? @relation(fields: [gameServerId], references: [id], onDelete: SetNull)
+  gameServer   GameServer? @relation(fields: [gameServerId], references: [id], onDelete: SetNull) // onDelete: SetNull to preserve order history for compliance/auditing
 
   userId String
-  user   User   @relation(fields: [userId], references: [id], onDelete: Restrict) // Restrict deletion to preserve order history for compliance/auditing
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade) // Cascade deletion for compliance with the EU
 
   workerJobId String? // Job that processed this order
 
@@ -144,21 +147,23 @@ model GameServerOrder {
   ramMB       Int
   cpuPercent  Int
   diskMB      Int
-  price       Float
   backupCount Int
+  allocations Int
+  price       Float
 
-  receipt_url     String?
-  stripeSessionId String?     @unique
-  status          OrderStatus @default(PENDING)
+  receipt_url        String?
+  stripeSessionId    String?     @unique
+  stripeClientSecret String?
+  status             OrderStatus @default(PENDING)
 
   expiresAt DateTime // New expiry date *if* order succeeds
 
   gameConfig         Json? // This is the same as the GameConfig in models
-  creationGameDataId Int?
-  creationGameData   GameData? @relation(fields: [creationGameDataId], references: [id], onDelete: Restrict)
+  creationGameDataId Int
+  creationGameData   GameData @relation(fields: [creationGameDataId], references: [id], onDelete: Restrict)
 
-  creationLocationId Int?
-  creationLocation   Location? @relation(fields: [creationLocationId], references: [id], onDelete: Restrict)
+  creationLocationId Int
+  creationLocation   Location @relation(fields: [creationLocationId], references: [id], onDelete: Restrict)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -365,11 +370,11 @@ model WorkerLog {
   gameServer   GameServer? @relation(fields: [gameServerId], references: [id], onDelete: SetNull)
 
   userId String?
-  user   User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
+  user   User?   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   // Relation to JobRun
   jobRunId     String?
-  jobRunRecord JobRun? @relation(fields: [jobRunId], references: [id], onDelete: SetNull)
+  jobRunRecord JobRun? @relation(fields: [jobRunId], references: [id], onDelete: Cascade)
 
   createdAt DateTime @default(now())
 
@@ -406,7 +411,7 @@ model ApplicationLog {
 
   // User context (optional)
   userId String?
-  user   User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
+  user   User?   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   gameServerId String?
   gameServer   GameServer? @relation(fields: [gameServerId], references: [id], onDelete: SetNull)
@@ -534,7 +539,9 @@ model GameDataFeature {
 
 model HardwareRecommendation {
   id                   Int      @id @default(autoincrement())
-  eggId                Int
+  eggId                Int? // Optinal egg id for games like minecraft which uses many eggs
+  gameDataId           Int
+  gameData             GameData @relation(fields: [gameDataId], references: [id], onDelete: Restrict)
   minCpuPercent        Int
   recCpuPercent        Int
   minramMb             Int

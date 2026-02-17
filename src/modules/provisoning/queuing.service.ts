@@ -12,7 +12,7 @@ export class QueueProvisionService {
     @InjectQueue('provisioning') private provisioningQueue: Queue,
   ) {}
 
-  async createProvisioningJob(orderId: number, traceparent?: string) {
+  async createProvisioningJob(orderId: string, traceparent?: string) {
     this.logger.log(`Queuing provisioning job for order ID: ${orderId}`);
     // Fetch the order from the database
     const order = await this.prisma.gameServerOrder.findUnique({
@@ -37,6 +37,7 @@ export class QueueProvisionService {
       {
         attempts: 3,
         backoff: { type: 'exponential', delay: 5000 },
+        jobId: order.id,
       },
     );
 

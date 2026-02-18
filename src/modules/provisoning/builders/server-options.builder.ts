@@ -117,6 +117,7 @@ export class ServerOptionsBuilder {
       image: this.image,
       limits: this.limits,
       featureLimits: this.featureLimits,
+      description: `${this.limits.cpu}% CPU, ${this.limits.memory}MB RAM, ${this.limits.disk}MB Disk`,
       deploy: this.deploy,
       startWhenInstalled: this.startWhenInstalled,
       outOfMemoryKiller: this.outOfMemoryKiller,

@@ -27,7 +27,7 @@ jobs:
 
     runs-on: ubuntu-latest
     permissions:
-      contents: read
+      contents: write  # required to push the version-bump commit
       packages: write
       # This is used to complete the identity challenge
       # with sigstore/fulcio when running outside of PRs.
@@ -36,6 +36,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # full history needed for reliable git operations
 
       # Install the cosign tool except on PR
       # https://github.com/sigstore/cosign-installer
@@ -51,6 +53,35 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@f95db51fddba0c2d1ec667646a06c2ce06100226 # v3.0.0
 
+      # Auto-increment patch version in package.json and commit it back.
+      # Only runs on direct pushes to master (not PRs, not scheduled runs).
+      # The commit message contains [skip ci] to prevent an infinite loop.
+      - name: Bump patch version in package.json
+        if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+        run: |
+          CURRENT=$(node -p "require('./package.json').version")
+          IFS='.' read -r MAJOR MINOR PATCH <<< "$CURRENT"
+          NEW_VERSION="$MAJOR.$MINOR.$((PATCH + 1))"
+          node -e "
+            const fs = require('fs');
+            const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
+            pkg.version = '$NEW_VERSION';
+            fs.writeFileSync('package.json', JSON.stringify(pkg, null, 2) + '\n');
+          "
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add package.json
+          git commit -m "chore: bump version to ${NEW_VERSION} [skip ci]"
+          git push
+
+      # Read the (possibly just-bumped) version and the short commit SHA.
+      # These are used as Docker image tags below.
+      - name: Read version and short SHA
+        id: vars
+        run: |
+          echo "version=$(node -p "require('./package.json').version")" >> $GITHUB_OUTPUT
+          echo "short_sha=${GITHUB_SHA::7}" >> $GITHUB_OUTPUT
+
       # Login against a Docker registry except on PR
       # https://github.com/docker/login-action
       - name: Log into registry ${{ env.REGISTRY }}
@@ -61,13 +92,25 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      # Extract metadata (tags, labels) for Docker
+      # Extract metadata (tags, labels) for Docker.
+      # Tags produced:
+      #   - <version>              e.g. 1.2.3
+      #   - <version>-<short-sha>  e.g. 1.2.3-a1b2c3d
+      #   - sha-<short-sha>        e.g. sha-a1b2c3d
+      #   - branch name            e.g. master
+      #   - pr-<number>            on pull-request events
       # https://github.com/docker/metadata-action
       - name: Extract Docker metadata
         id: meta
         uses: docker/metadata-action@96383f45573cb7f253c731d3b3ab81c87ef81934 # v5.0.0
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=raw,value=${{ steps.vars.outputs.version }}
+            type=raw,value=${{ steps.vars.outputs.version }}-${{ steps.vars.outputs.short_sha }}
+            type=sha,format=short
+            type=ref,event=branch
+            type=ref,event=pr
 
       # Build and push Docker image with Buildx (don't push on PR)
       # https://github.com/docker/build-push-action

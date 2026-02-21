@@ -50,7 +50,7 @@ export class LoggerService implements NestLoggerService {
         }),
         // Loki transport
         new LokiTransport({
-          host: 'http://10.7.10.1:3100', // Change to your Loki URL
+          host: 'http://10.7.10.1:3100',
           labels: {
             service_name: 'nest-lake-worker',
             job: 'nest-lake-worker',

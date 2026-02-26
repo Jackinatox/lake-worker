@@ -5,7 +5,7 @@ import { EmailTransportService } from './emailTransport.service';
 import {
   DEFAULT_BATCH_SIZE,
   EMAIL_THROTTLE_MS,
-} from '../constants/worker.constants';
+} from 'src/lib/GlobalConsstants';
 
 @Injectable()
 export class SendEmailsService {

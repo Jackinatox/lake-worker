@@ -1,6 +1,6 @@
 import { Text } from '@react-email/components';
 import * as React from 'react';
-import { APP_URL } from '../../constants/worker.constants';
+import { APP_URL } from 'src/lib/GlobalConsstants';
 
 interface EmailFooterProps {
   supportText?: string;

@@ -8,7 +8,7 @@ import {
 import { JobRunService } from '../services/job-run.service';
 import { EmailTransportService } from './emailTransport.service';
 import { EmailTemplateService } from '../services/email-template.service';
-import { DELETE_GAMESERVER_AFTER_DAYS } from '../constants/worker.constants';
+import { DELETE_GAMESERVER_AFTER_DAYS } from 'src/lib/GlobalConsstants';
 
 @Injectable()
 export class GenerateExpiryEmailsService {

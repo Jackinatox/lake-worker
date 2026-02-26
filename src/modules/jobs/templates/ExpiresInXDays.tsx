@@ -3,7 +3,7 @@ import * as React from 'react';
 import {
   APP_URL,
   DELETE_GAMESERVER_AFTER_DAYS,
-} from '../constants/worker.constants';
+} from 'src/lib/GlobalConsstants';
 import { EmailLayout } from './components/EmailLayout';
 
 interface ExpiredServerTemplateProps {

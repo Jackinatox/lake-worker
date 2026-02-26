@@ -4,7 +4,7 @@ import { PrismaService } from 'src/core/prisma.service';
 import { GameServerStatus } from 'src/generated/prisma/client';
 import { JobRunService, JobContext } from '../services/job-run.service';
 import { WorkerJobType } from 'src/generated/prisma/client';
-import { DEFAULT_BATCH_SIZE } from '../constants/worker.constants';
+import { DEFAULT_BATCH_SIZE } from 'src/lib/GlobalConsstants';
 
 @Injectable()
 export class ExpireServersService {

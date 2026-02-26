@@ -6,7 +6,7 @@ import { JobRunService, JobContext } from '../services/job-run.service';
 import {
   DEFAULT_BATCH_SIZE,
   DELETE_GAMESERVER_AFTER_DAYS,
-} from '../constants/worker.constants';
+} from 'src/lib/GlobalConsstants';
 
 @Injectable()
 export class DeleteServersService {

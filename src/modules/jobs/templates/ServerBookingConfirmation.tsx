@@ -1,6 +1,6 @@
 import { Button, Heading, Img, Section, Text } from '@react-email/components';
 import * as React from 'react';
-import { APP_URL } from '../constants/worker.constants';
+import { APP_URL } from 'src/lib/GlobalConsstants';
 import { EmailLayout } from './components/EmailLayout';
 import formatVCores from 'src/lib/general/formatVCores';
 

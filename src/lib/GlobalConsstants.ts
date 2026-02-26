@@ -43,3 +43,11 @@ export const MAX_EDITABLE_FILE_SIZE_LABEL = '2 MB';
 export const EGG_FEATURE_MINECRAFT_EULA = 'Minecraft Eula';
 export const EGG_FEATURE_JAVA_VERSION = 'Java Version';
 export const EGG_FEATURE_HYTALE_OAUTH = 'HytaleOAuth';
+
+// Worker Constants
+export const DELETE_GAMESERVER_AFTER_DAYS = 90;
+export const APP_URL = 'https://scyed.com';
+
+// Job batch sizes
+export const DEFAULT_BATCH_SIZE = 20;
+export const EMAIL_THROTTLE_MS = 400;

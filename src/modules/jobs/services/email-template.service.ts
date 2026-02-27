@@ -20,6 +20,7 @@ export class EmailTemplateService {
     expirationDays: 7 | 1;
     serverId: string;
     isFreeServer: boolean;
+    deletionThresholdDays: number;
   }): Promise<string> {
     const html = await render(
       ExpiresInXDaysTemplate({
@@ -30,6 +31,7 @@ export class EmailTemplateService {
         expirationDays: params.expirationDays,
         serverId: params.serverId,
         isFreeServer: params.isFreeServer,
+        deletionThresholdDays: params.deletionThresholdDays,
       }),
     );
     return html;
@@ -45,6 +47,7 @@ export class EmailTemplateService {
     deletionDate: Date;
     deletionDays: 7 | 1;
     serverId: string;
+    deletionThresholdDays: number;
   }): Promise<string> {
     const html = await render(
       DeleteInXDaysTemplate({

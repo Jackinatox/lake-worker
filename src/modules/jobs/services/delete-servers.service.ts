@@ -3,10 +3,8 @@ import { ConfigService } from '@nestjs/config';
 import { PrismaService } from 'src/core/prisma.service';
 import { GameServerStatus, WorkerJobType } from 'src/generated/prisma/client';
 import { JobRunService, JobContext } from '../services/job-run.service';
-import {
-  DEFAULT_BATCH_SIZE,
-  DELETE_GAMESERVER_AFTER_DAYS,
-} from 'src/lib/GlobalConsstants';
+import { DEFAULT_BATCH_SIZE } from 'src/lib/GlobalConsstants';
+import { ConfigCacheService } from 'src/core/config-cache.service';
 
 @Injectable()
 export class DeleteServersService {
@@ -14,6 +12,7 @@ export class DeleteServersService {
     private readonly prisma: PrismaService,
     private readonly config: ConfigService,
     private readonly jobRunService: JobRunService,
+    private readonly configCache: ConfigCacheService,
   ) {}
 
   /**
@@ -23,15 +22,18 @@ export class DeleteServersService {
     const ctx = await this.jobRunService.startJobRun(
       WorkerJobType.DELETE_SERVERS,
       {
-        deletionThresholdDays: DELETE_GAMESERVER_AFTER_DAYS,
+        deletionThresholdDays:
+          await this.configCache.getDeleteGameserverAfterDays(),
       },
     );
 
     let processed = 0;
     let failed = 0;
     const now = new Date();
+    const deletionThresholdDays =
+      await this.configCache.getDeleteGameserverAfterDays();
     const deletionThreshold = new Date(
-      now.getTime() - DELETE_GAMESERVER_AFTER_DAYS * 24 * 60 * 60 * 1000,
+      now.getTime() - deletionThresholdDays * 24 * 60 * 60 * 1000,
     );
 
     // Count total servers to process

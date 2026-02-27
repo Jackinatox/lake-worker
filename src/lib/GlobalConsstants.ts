@@ -44,8 +44,10 @@ export const EGG_FEATURE_MINECRAFT_EULA = 'Minecraft Eula';
 export const EGG_FEATURE_JAVA_VERSION = 'Java Version';
 export const EGG_FEATURE_HYTALE_OAUTH = 'HytaleOAuth';
 
-// Worker Constants
-export const DELETE_GAMESERVER_AFTER_DAYS = 90;
+// DB keys for cached config values (stored in the KeyValue table)
+export const CONFIG_KEY_DELETE_GAMESERVER_AFTER_DAYS =
+  'delete_gameserver_after_days';
+
 export const APP_URL = 'https://scyed.com';
 
 // Job batch sizes

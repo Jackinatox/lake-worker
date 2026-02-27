@@ -8,7 +8,7 @@ import {
 import { JobRunService } from '../services/job-run.service';
 import { EmailTransportService } from './emailTransport.service';
 import { EmailTemplateService } from '../services/email-template.service';
-import { DELETE_GAMESERVER_AFTER_DAYS } from 'src/lib/GlobalConsstants';
+import { ConfigCacheService } from 'src/core/config-cache.service';
 
 @Injectable()
 export class GenerateExpiryEmailsService {
@@ -17,6 +17,7 @@ export class GenerateExpiryEmailsService {
     private readonly jobRunService: JobRunService,
     private readonly emailService: EmailTransportService,
     private readonly templateService: EmailTemplateService,
+    private readonly configCache: ConfigCacheService,
   ) {}
 
   /**
@@ -142,8 +143,11 @@ export class GenerateExpiryEmailsService {
       throw new Error(`Server ${server.id} has no Pterodactyl server ID`);
     }
 
+    const deletionThresholdDays =
+      await this.configCache.getDeleteGameserverAfterDays();
+
     const deleteDate = new Date(server.expires);
-    deleteDate.setDate(deleteDate.getDate() + DELETE_GAMESERVER_AFTER_DAYS);
+    deleteDate.setDate(deleteDate.getDate() + deletionThresholdDays);
 
     const emailType =
       days === 1
@@ -158,6 +162,7 @@ export class GenerateExpiryEmailsService {
       expirationDays: days,
       serverId: server.ptServerId,
       isFreeServer: server.type === 'FREE',
+      deletionThresholdDays,
     });
 
     await this.emailService.createEmail({

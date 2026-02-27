@@ -8,7 +8,7 @@ import {
 import { JobRunService } from '../services/job-run.service';
 import { EmailTransportService } from './emailTransport.service';
 import { EmailTemplateService } from '../services/email-template.service';
-import { DELETE_GAMESERVER_AFTER_DAYS } from 'src/lib/GlobalConsstants';
+import { ConfigCacheService } from 'src/core/config-cache.service';
 
 @Injectable()
 export class GenerateDeletionEmailsService {
@@ -17,6 +17,7 @@ export class GenerateDeletionEmailsService {
     private readonly jobRunService: JobRunService,
     private readonly emailService: EmailTransportService,
     private readonly templateService: EmailTemplateService,
+    private readonly configCache: ConfigCacheService,
   ) {}
 
   /**
@@ -36,13 +37,13 @@ export class GenerateDeletionEmailsService {
     try {
       // Process 1-day deletion reminders
       const twoDaysFromNow = new Date(now.getTime() + 2 * 24 * 60 * 60 * 1000);
+      const deletionThresholdDays =
+        await this.configCache.getDeleteGameserverAfterDays();
       const expiryThreshold1DayMin = new Date(
-        now.getTime() -
-          (DELETE_GAMESERVER_AFTER_DAYS - 1) * 24 * 60 * 60 * 1000,
+        now.getTime() - (deletionThresholdDays - 1) * 24 * 60 * 60 * 1000,
       );
       const expiryThreshold1DayMax = new Date(
-        twoDaysFromNow.getTime() -
-          DELETE_GAMESERVER_AFTER_DAYS * 24 * 60 * 60 * 1000,
+        twoDaysFromNow.getTime() - deletionThresholdDays * 24 * 60 * 60 * 1000,
       );
 
       const deleting1day = await this.prisma.gameServer.findMany({
@@ -58,9 +59,7 @@ export class GenerateDeletionEmailsService {
       for (const server of deleting1day) {
         try {
           const deletionDate = new Date(server.expires);
-          deletionDate.setDate(
-            deletionDate.getDate() + DELETE_GAMESERVER_AFTER_DAYS,
-          );
+          deletionDate.setDate(deletionDate.getDate() + deletionThresholdDays);
           await this.createDeletionEmail(server, 1, deletionDate);
           processed++;
         } catch (error) {
@@ -83,12 +82,11 @@ export class GenerateDeletionEmailsService {
         now.getTime() + 8 * 24 * 60 * 60 * 1000,
       );
       const expiryThreshold7DayMin = new Date(
-        sixDaysFromNow.getTime() -
-          DELETE_GAMESERVER_AFTER_DAYS * 24 * 60 * 60 * 1000,
+        sixDaysFromNow.getTime() - deletionThresholdDays * 24 * 60 * 60 * 1000,
       );
       const expiryThreshold7DayMax = new Date(
         eightDaysFromNow.getTime() -
-          DELETE_GAMESERVER_AFTER_DAYS * 24 * 60 * 60 * 1000,
+          deletionThresholdDays * 24 * 60 * 60 * 1000,
       );
 
       const deleting7days = await this.prisma.gameServer.findMany({
@@ -104,9 +102,7 @@ export class GenerateDeletionEmailsService {
       for (const server of deleting7days) {
         try {
           const deletionDate = new Date(server.expires);
-          deletionDate.setDate(
-            deletionDate.getDate() + DELETE_GAMESERVER_AFTER_DAYS,
-          );
+          deletionDate.setDate(deletionDate.getDate() + deletionThresholdDays);
           await this.createDeletionEmail(server, 7, deletionDate);
           processed++;
         } catch (error) {
@@ -168,6 +164,8 @@ export class GenerateDeletionEmailsService {
       deletionDate,
       deletionDays: days,
       serverId: server.ptServerId,
+      deletionThresholdDays:
+        await this.configCache.getDeleteGameserverAfterDays(),
     });
 
     await this.emailService.createEmail({

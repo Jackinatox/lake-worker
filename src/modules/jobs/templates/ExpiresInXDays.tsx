@@ -1,9 +1,6 @@
 import { Button, Heading, Section, Text } from '@react-email/components';
 import * as React from 'react';
-import {
-  APP_URL,
-  DELETE_GAMESERVER_AFTER_DAYS,
-} from 'src/lib/GlobalConsstants';
+import { APP_URL } from 'src/lib/GlobalConsstants';
 import { EmailLayout } from './components/EmailLayout';
 
 interface ExpiredServerTemplateProps {
@@ -14,6 +11,7 @@ interface ExpiredServerTemplateProps {
   deleteDate: Date;
   serverId: string;
   isFreeServer: boolean;
+  deletionThresholdDays: number;
 }
 
 export default function ExpiresInXDaysTemplate({
@@ -24,6 +22,7 @@ export default function ExpiresInXDaysTemplate({
   deleteDate,
   serverId,
   isFreeServer,
+  deletionThresholdDays,
 }: ExpiredServerTemplateProps): React.ReactElement {
   const formattedExpirationDate = new Intl.DateTimeFormat('de-DE', {
     day: '2-digit',
@@ -59,18 +58,17 @@ export default function ExpiresInXDaysTemplate({
         in {daysText} ab, exakt am {formattedExpirationDate}.
       </Text>
       <Text className="mt-4 text-base leading-6 text-slate-600">
-        Nach dem Ablauf bleibt er für {DELETE_GAMESERVER_AFTER_DAYS} Tage
-        gesichert und kann bis spätestens {formattedDeleteDate} reaktiviert
-        werden.
+        Nach dem Ablauf bleibt er für {deletionThresholdDays} Tage gesichert und
+        kann bis spätestens {formattedDeleteDate} reaktiviert werden.
       </Text>
       <Section className="mt-6 rounded-lg border border-slate-200 bg-slate-50 p-4">
         <Text className="m-0 text-base font-semibold text-slate-900">
           Ablaufdatum: {formattedExpirationDate}
         </Text>
         <Text className="mt-2 text-sm leading-6 text-slate-600">
-          Wir halten deinen Server danach noch {DELETE_GAMESERVER_AFTER_DAYS}{' '}
-          Tage vor, bis zum {formattedDeleteDate}. Anschließend werden alle
-          Daten gelöscht.
+          Wir halten deinen Server danach noch {deletionThresholdDays} Tage vor,
+          bis zum {formattedDeleteDate}. Anschließend werden alle Daten
+          gelöscht.
         </Text>
       </Section>
       <Section className="mt-6">

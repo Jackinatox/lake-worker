@@ -161,9 +161,7 @@ export class DeleteServersService {
       throw new Error(`Missing Pterodactyl IDs for server ${server.id}`);
     }
 
-    const pterodactylUrl = this.config.get<string>(
-      'NEXT_PUBLIC_PTERODACTYL_URL',
-    );
+    const pterodactylUrl = this.config.get<string>('PTERODACTYL_URL');
     const apiKey = this.config.get<string>('PTERODACTYL_API_KEY');
 
     await this.jobRunService.logInfo(

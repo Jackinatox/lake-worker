@@ -1,10 +1,10 @@
 import { Injectable } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
 import { PrismaService } from 'src/core/prisma.service';
 import { GameServerStatus } from 'src/generated/prisma/client';
 import { JobRunService, JobContext } from '../services/job-run.service';
 import { WorkerJobType } from 'src/generated/prisma/client';
 import { DEFAULT_BATCH_SIZE } from 'src/lib/GlobalConsstants';
+import { ConfigService } from '@nestjs/config';
 
 @Injectable()
 export class ExpireServersService {
@@ -49,47 +49,44 @@ export class ExpireServersService {
     );
 
     try {
-      while (true) {
-        const expiring = await this.prisma.gameServer.findMany({
-          where: {
-            expires: { lte: now },
-            status: {
-              notIn: [
-                GameServerStatus.EXPIRED,
-                GameServerStatus.DELETED,
-                GameServerStatus.CREATION_FAILED,
-              ],
-            },
+      // TODO: This creates an infinite loop, when the exipres thing gets set manually
+      const expiring = await this.prisma.gameServer.findMany({
+        where: {
+          expires: { lte: now },
+          status: {
+            notIn: [
+              GameServerStatus.EXPIRED,
+              GameServerStatus.DELETED,
+              GameServerStatus.CREATION_FAILED,
+            ],
           },
-          take: DEFAULT_BATCH_SIZE,
-          orderBy: { expires: 'asc' },
-        });
+        },
+        take: DEFAULT_BATCH_SIZE,
+        orderBy: { expires: 'asc' },
+      });
 
-        if (expiring.length === 0) break;
-
-        for (const server of expiring) {
-          try {
-            await this.processServer(server, ctx);
-            processed++;
-            await this.jobRunService.updateProgress(
-              ctx.jobRunId,
-              processed,
-              total,
-              failed,
-            );
-          } catch (error) {
-            failed++;
-            await this.jobRunService.logError(
-              ctx,
-              'Failed to process individual server',
-              {
-                serverId: server.id,
-                error: error instanceof Error ? error.message : String(error),
-                stack: error instanceof Error ? error.stack : undefined,
-              },
-              { gameServerId: server.id, userId: server.userId },
-            );
-          }
+      for (const server of expiring) {
+        try {
+          await this.processServer(server, ctx);
+          processed++;
+          await this.jobRunService.updateProgress(
+            ctx.jobRunId,
+            processed,
+            total,
+            failed,
+          );
+        } catch (error) {
+          failed++;
+          await this.jobRunService.logError(
+            ctx,
+            'Failed to process individual server',
+            {
+              serverId: server.id,
+              error: error instanceof Error ? error.message : String(error),
+              stack: error instanceof Error ? error.stack : undefined,
+            },
+            { gameServerId: server.id, userId: server.userId },
+          );
         }
       }
 
@@ -162,9 +159,7 @@ export class ExpireServersService {
       throw new Error(`Missing Pterodactyl IDs for server ${server.id}`);
     }
 
-    const pterodactylUrl = this.config.get<string>(
-      'NEXT_PUBLIC_PTERODACTYL_URL',
-    );
+    const pterodactylUrl = this.config.get<string>('PTERODACTYL_URL');
     const apiKey = this.config.get<string>('PTERODACTYL_API_KEY');
 
     await this.jobRunService.logInfo(

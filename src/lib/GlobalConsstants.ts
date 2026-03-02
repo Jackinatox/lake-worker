@@ -51,5 +51,5 @@ export const CONFIG_KEY_DELETE_GAMESERVER_AFTER_DAYS =
 export const APP_URL = 'https://scyed.com';
 
 // Job batch sizes
-export const DEFAULT_BATCH_SIZE = 20;
+export const DEFAULT_BATCH_SIZE = 50;
 export const EMAIL_THROTTLE_MS = 400;

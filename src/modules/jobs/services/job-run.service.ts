@@ -115,6 +115,7 @@ export class JobRunService {
     });
   }
 
+  // TODO: Use the global logging util
   /**
    * Log to database with job context
    */

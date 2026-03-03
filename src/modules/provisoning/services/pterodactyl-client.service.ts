@@ -20,7 +20,7 @@ export class PterodactylClientService {
 
   async createServerWithRetry(
     options: NewServerOptions,
-    maxAttempts = 3,
+    maxAttempts = 1,
     delayMs = 5000,
   ): Promise<Server> {
     return withRetry(() => this.createServer(options), {

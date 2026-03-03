@@ -43,21 +43,6 @@ export function calcBackups(cpu: number, ramSize: number): number {
   );
 }
 
-export function getEggId(gameName: string): number {
-  switch (gameName.toLowerCase()) {
-    case 'minecraft':
-      return 5;
-    // case 'satisfactory':
-    //     return 2;
-    // case 'terraria':
-    //     return 3;
-    // case 'ark':
-    //     return 4;
-    default:
-      return -1;
-  }
-}
-
 export function formatBytes(bytes: number): string {
   if (bytes === 0) return '0 B';
 

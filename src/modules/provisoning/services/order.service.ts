@@ -22,7 +22,9 @@ export interface ValidatedOrder {
 }
 
 export interface GameConfigBase {
-  gameId: number;
+  gameSlug: string;
+  /** @deprecated Use gameSlug instead — kept for backward compatibility with existing orders */
+  gameId?: number;
   eggId: number;
   version: string;
   dockerImage: string;

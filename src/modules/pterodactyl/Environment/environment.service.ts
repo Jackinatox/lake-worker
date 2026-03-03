@@ -1,20 +1,13 @@
 import { Injectable } from '@nestjs/common';
-import {
-  FabricEggId,
-  ForgeEggId,
-  NeoForgeEggId,
-  PaperEggId,
-  VanillaEggId,
-} from 'src/lib/GlobalConsstants';
 import { HytaleConfig, SatisfactoryConfig } from './GameConfig';
 
 @Injectable()
 export class EnvironmentService {
-  minecraft(id: number, minecraftVersion: string): any {
+  minecraft(flavorName: string, minecraftVersion: string): any {
     let startAndVars;
 
-    switch (id) {
-      case VanillaEggId:
+    switch (flavorName.toLowerCase()) {
+      case 'vanilla':
         startAndVars = {
           environment: {
             MINECRAFT_VERSION: minecraftVersion,
@@ -24,7 +17,7 @@ export class EnvironmentService {
             'java -Xms128M -XX:MaxRAMPercentage=90.0 -jar {{SERVER_JARFILE}}',
         };
         break;
-      case ForgeEggId: // Forge
+      case 'forge':
         startAndVars = {
           environment: {
             MINECRAFT_VERSION: minecraftVersion,
@@ -35,7 +28,7 @@ export class EnvironmentService {
             'java -Xms128M -XX:MaxRAMPercentage=90.0 -Dterminal.jline=false -Dterminal.ansi=true $( [[  ! -f unix_args.txt ]] && printf %s "-jar {{SERVER_JARFILE}}" || printf %s "@unix_args.txt" )',
         };
         break;
-      case PaperEggId: // Paper
+      case 'paper':
         startAndVars = {
           environment: {
             MINECRAFT_VERSION: minecraftVersion,
@@ -46,7 +39,7 @@ export class EnvironmentService {
             'java -Xms128M -XX:MaxRAMPercentage=90.0 -Dterminal.jline=false -Dterminal.ansi=true -jar {{SERVER_JARFILE}}',
         };
         break;
-      case FabricEggId: // Fabric
+      case 'fabric':
         startAndVars = {
           environment: {
             MINECRAFT_VERSION: minecraftVersion,
@@ -58,7 +51,7 @@ export class EnvironmentService {
             'java -Xms128M -XX:MaxRAMPercentage=90.0 -jar {{SERVER_JARFILE}}',
         };
         break;
-      case NeoForgeEggId: // NeiForge
+      case 'neoforge':
         startAndVars = {
           environment: {
             MINECRAFT_VERSION: minecraftVersion,

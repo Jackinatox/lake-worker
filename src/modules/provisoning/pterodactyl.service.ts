@@ -12,12 +12,8 @@ import {
 import { PterodactylClientService } from './services/pterodactyl-client.service';
 import { EnvironmentService } from '../pterodactyl/Environment/environment.service';
 import {
-  HytaleGameId,
-  MinecraftGameId,
-  SatisfactoryGameId,
-} from 'src/lib/GlobalConsstants';
-import {
   HytaleConfig,
+  MinecraftConfig,
   SatisfactoryConfig,
 } from '../pterodactyl/Environment/GameConfig';
 import { Span, trace } from '@opentelemetry/api';
@@ -27,6 +23,37 @@ import { InstallationService } from '../pterodactyl/Installation/installation.se
 import { Server } from '@avionrx/pterodactyl-js';
 import { EmailService } from '../email/email.service';
 import { OrderType } from 'src/generated/prisma/client';
+
+/**
+ * Extracts a human-readable message from any thrown value.
+ * Handles standard Errors, plain objects (e.g. from @avionrx/pterodactyl-js
+ * which rejects with { statusCode, message } instead of Error instances),
+ * arrays of error objects, and primitive values.
+ */
+export function extractErrorMessage(error: unknown): string {
+  if (error instanceof Error) return error.message;
+  if (Array.isArray(error)) {
+    return error
+      .map((e) => {
+        if (e && typeof e === 'object' && 'message' in e) {
+          return String((e as Record<string, unknown>).message);
+        }
+        return String(e);
+      })
+      .join('; ');
+  }
+  if (error && typeof error === 'object') {
+    const e = error as Record<string, unknown>;
+    if (typeof e.message === 'string') return e.message;
+    try {
+      return JSON.stringify(error);
+    } catch {
+      return '[unserializable error]';
+    }
+  }
+  if (typeof error === 'string') return error;
+  return String(error);
+}
 
 @Injectable()
 export class PterodactylService {
@@ -78,7 +105,7 @@ export class PterodactylService {
 
       await this.ports.correctPorts(
         ptServer.identifier,
-        order.creationGameDataId,
+        order.creationGameData.slug,
         order.user,
       );
 
@@ -132,8 +159,8 @@ export class PterodactylService {
     order: GameServerOrder,
     gameConfig: GameConfigBase,
   ) {
-    const gameId = order.creationGameData.id;
-    const environmentConfig = this.getEnvironmentConfig(gameId, gameConfig);
+    const gameSlug = order.creationGameData.slug;
+    const environmentConfig = this.getEnvironmentConfig(gameSlug, gameConfig);
     const serverName = `${order.creationGameData.name} Gameserver`;
 
     if (!order.user.ptUserId) {
@@ -153,25 +180,27 @@ export class PterodactylService {
   }
 
   private getEnvironmentConfig(
-    gameId: number,
+    gameSlug: string,
     gameConfig: GameConfigBase,
   ): EnvironmentConfig {
-    switch (gameId) {
-      case MinecraftGameId:
+    switch (gameSlug) {
+      case 'minecraft': {
+        const mcConfig = gameConfig.gameSpecificConfig as MinecraftConfig;
         return this.envService.minecraft(
-          gameConfig.eggId,
+          mcConfig.flavor,
           gameConfig.version,
         ) as EnvironmentConfig;
-      case SatisfactoryGameId:
+      }
+      case 'satisfactory':
         return this.envService.satisfactory(
           gameConfig.gameSpecificConfig as SatisfactoryConfig,
         ) as EnvironmentConfig;
-      case HytaleGameId:
+      case 'hytale':
         return this.envService.hytale(
           gameConfig.gameSpecificConfig as HytaleConfig,
         ) as EnvironmentConfig;
       default:
-        throw new Error(`Unsupported game ID: ${gameId}`);
+        throw new Error(`Unsupported game slug: ${gameSlug}`);
     }
   }
 
@@ -197,6 +226,8 @@ export class PterodactylService {
           span.setAttribute('order.id', orderId);
           span.setAttribute('server.name', options.name);
 
+          this.logger.log('Create Server with: ', { options });
+
           const ptServer = await this.ptClient.createServerWithRetry(options);
 
           span.setAttribute('server.ptId', ptServer.identifier);
@@ -221,13 +252,15 @@ export class PterodactylService {
           await job.updateProgress(50);
           return ptServer;
         } catch (error) {
+          const message = extractErrorMessage(error);
           if (error instanceof Error) {
             span.recordException(error);
+          } else {
+            span.recordException(new Error(message));
           }
-          const message =
-            error instanceof Error ? error.message : 'Unknown error';
           this.logger.error(
             `Failed to provision server for order ${orderId}: ${message}`,
+            { rawError: JSON.stringify(error) },
           );
           await this.orderService.markServerFailed(serverId);
           throw new Error(`Provisioning failed: ${message}`);

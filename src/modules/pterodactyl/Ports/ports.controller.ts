@@ -30,7 +30,7 @@ export class PortsController {
 
       const server = await this.prisma.gameServer.findFirst({
         where: { ptServerId: reassignPorts.serverId },
-        include: { user: true },
+        include: { user: true, gameData: { select: { slug: true } } },
       });
 
       if (!server) {
@@ -39,9 +39,15 @@ export class PortsController {
         );
       }
 
+      if (!server.gameData) {
+        throw new BadRequestException(
+          `No game data found for server: ${reassignPorts.serverId}`,
+        );
+      }
+
       const result = await this.portService.correctPorts(
         reassignPorts.serverId,
-        server.gameDataId,
+        server.gameData.slug,
         server.user,
       );
 

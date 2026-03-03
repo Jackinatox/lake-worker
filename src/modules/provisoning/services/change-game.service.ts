@@ -11,12 +11,8 @@ import { EnvironmentService } from '../../pterodactyl/Environment/environment.se
 import { PterodactylPortService } from '../../pterodactyl/Ports/port.service';
 import { InstallationService } from '../../pterodactyl/Installation/installation.service';
 import {
-  MinecraftGameId,
-  SatisfactoryGameId,
-  HytaleGameId,
-} from 'src/lib/GlobalConsstants';
-import {
   HytaleConfig,
+  MinecraftConfig,
   SatisfactoryConfig,
 } from '../../pterodactyl/Environment/GameConfig';
 import type { GameConfigBase } from './order.service';
@@ -106,7 +102,7 @@ export class ChangeGameService {
         await this.delay(200);
 
         // 3. Build and apply new startup configuration
-        const startupBody = this.buildStartupBody(gameConfig, gameId);
+        const startupBody = this.buildStartupBody(gameConfig, newGameData.slug);
         await this.updateServerStartup(gameServer.ptAdminId, startupBody);
 
         // Small delay before port configuration
@@ -115,7 +111,7 @@ export class ChangeGameService {
         // 4. Correct ports for the new game
         await this.ports.correctPorts(
           gameServer.ptServerId,
-          newGameData.id,
+          newGameData.slug,
           user,
         );
 
@@ -162,7 +158,7 @@ export class ChangeGameService {
 
   private buildStartupBody(
     gameConfig: GameConfigBase,
-    gameId: number,
+    gameSlug: string,
   ): StartupBody {
     const baseBody = {
       skip_scripts: true,
@@ -172,25 +168,27 @@ export class ChangeGameService {
 
     let envConfig: { environment: Record<string, string>; startup: string };
 
-    switch (gameId) {
-      case MinecraftGameId:
+    switch (gameSlug) {
+      case 'minecraft': {
+        const mcConfig = gameConfig.gameSpecificConfig as MinecraftConfig;
         envConfig = this.envService.minecraft(
-          gameConfig.eggId,
+          mcConfig.flavor,
           gameConfig.version,
         );
         break;
-      case SatisfactoryGameId:
+      }
+      case 'satisfactory':
         envConfig = this.envService.satisfactory(
           gameConfig.gameSpecificConfig as SatisfactoryConfig,
         );
         break;
-      case HytaleGameId:
+      case 'hytale':
         envConfig = this.envService.hytale(
           gameConfig.gameSpecificConfig as HytaleConfig,
         );
         break;
       default:
-        throw new Error(`Unsupported game ID: ${gameId}`);
+        throw new Error(`Unsupported game slug: ${gameSlug}`);
     }
 
     return { ...baseBody, ...envConfig };

@@ -1,11 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { trace } from '@opentelemetry/api';
 import { User } from 'src/generated/prisma/client';
-import {
-  HytaleGameId,
-  MinecraftGameId,
-  SatisfactoryGameId,
-} from 'src/lib/GlobalConsstants';
 
 interface AllocationAttributes {
   id: number;
@@ -320,21 +315,21 @@ export class PterodactylPortService {
 
   async correctPorts(
     ptServerId: string,
-    gameId: number,
+    gameSlug: string,
     user: User,
     maxRetries: number = 4,
   ): Promise<PortConfigurationResult> {
     let lastError: Error | undefined;
     return await this.tracer.startActiveSpan('correctPorts', async (span) => {
       span.setAttribute('server.ptId', ptServerId);
-      span.setAttribute('game.id', gameId);
+      span.setAttribute('game.slug', gameSlug);
       span.setAttribute('retry.maxAttempts', maxRetries);
 
       for (let attempt = 1; attempt <= maxRetries; attempt++) {
         try {
           const result = await this.configureServerPorts(
             ptServerId,
-            gameId,
+            gameSlug,
             user.ptKey!,
           );
 
@@ -385,23 +380,33 @@ export class PterodactylPortService {
 
   private async configureServerPorts(
     ptServerId: string,
-    gameId: number,
+    gameSlug: string,
     apiKey: string,
   ): Promise<Omit<PortConfigurationResult, 'attemptsMade'>> {
     return this.tracer.startActiveSpan('configureServerPorts', async (span) => {
       span.setAttribute('server.ptId', ptServerId);
-      span.setAttribute('game.id', gameId);
+      span.setAttribute('game.slug', gameSlug);
 
       this.logger.debug(
-        `Starting port configuration for server ${ptServerId}, game ${gameId}`,
+        `Starting port configuration for server ${ptServerId}, game ${gameSlug}`,
       );
 
-      const GAME_PORT_CONFIG = {
-        [MinecraftGameId]: {
+      const GAME_PORT_CONFIG: Record<
+        string,
+        {
+          requiredAllocations: number;
+          ports: ReadonlyArray<{
+            envVar: string;
+            notes: string;
+            isSecondary: boolean;
+          }>;
+        }
+      > = {
+        minecraft: {
           requiredAllocations: 1,
           ports: [],
         },
-        [SatisfactoryGameId]: {
+        satisfactory: {
           requiredAllocations: 2,
           ports: [
             {
@@ -411,7 +416,7 @@ export class PterodactylPortService {
             },
           ],
         },
-        [HytaleGameId]: {
+        hytale: {
           requiredAllocations: 2,
           ports: [
             {
@@ -421,14 +426,17 @@ export class PterodactylPortService {
             },
           ],
         },
-      } as const;
+      };
 
-      const gameConfig =
-        GAME_PORT_CONFIG[gameId as keyof typeof GAME_PORT_CONFIG];
+      const gameConfig = GAME_PORT_CONFIG[gameSlug] ?? {
+        requiredAllocations: 1,
+        ports: [],
+      };
 
-      if (!gameConfig) {
-        span.end();
-        throw new Error(`No port configuration found for game ID: ${gameId}`);
+      if (!GAME_PORT_CONFIG[gameSlug]) {
+        this.logger.warn(
+          `No port configuration found for game slug: ${gameSlug}, using default (1 allocation, no extra ports)`,
+        );
       }
 
       span.setAttribute(

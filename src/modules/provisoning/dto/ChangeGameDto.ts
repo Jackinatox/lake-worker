@@ -14,7 +14,7 @@ export class ChangeGameDto {
   gameId: number;
 
   @IsString({ message: 'serverId must be a string' })
-  serverId: string;
+  ptServerId: string;
 
   @IsString({ message: 'userId must be a string' })
   userId: string;

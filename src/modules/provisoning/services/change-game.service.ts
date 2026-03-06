@@ -18,7 +18,7 @@ import {
 import type { GameConfigBase } from './order.service';
 
 interface ChangeGameInput {
-  serverId: string;
+  ptServerId: string;
   gameId: number;
   gameConfig: GameConfigBase;
   deleteFiles?: boolean;
@@ -50,32 +50,34 @@ export class ChangeGameService {
   async changeGame(input: ChangeGameInput): Promise<{ success: boolean }> {
     return this.tracer.startActiveSpan('changeGame', async (span: Span) => {
       const {
-        serverId,
+        ptServerId,
         gameId,
         gameConfig,
         deleteFiles = true,
         userId,
       } = input;
 
-      span.setAttribute('server.ptId', serverId);
+      span.setAttribute('server.ptId', ptServerId);
       span.setAttribute('game.newId', gameId);
       span.setAttribute('user.id', userId);
       span.setAttribute('deleteFiles', deleteFiles);
 
       try {
         // 1. Validate server ownership and get server + new game data
-        const [gameServer, newGameData, user] = await Promise.all([
+        const [gameServer, newGameData] = await Promise.all([
           this.prisma.gameServer.findFirst({
             where: {
-              ptServerId: serverId,
+              ptServerId: ptServerId,
               userId: userId,
               status: {
                 notIn: ['CREATION_FAILED', 'DELETED'],
               },
             },
+            include: {
+              user: true,
+            },
           }),
           this.prisma.gameData.findUnique({ where: { id: gameId } }),
-          this.prisma.user.findUnique({ where: { id: userId } }),
         ]);
 
         if (!gameServer || !gameServer.ptServerId || !gameServer.ptAdminId) {
@@ -86,7 +88,7 @@ export class ChangeGameService {
           throw new NotFoundException('Selected game not found');
         }
 
-        if (!user || !user.ptKey) {
+        if (!gameServer.user || !gameServer.user.ptKey) {
           throw new ForbiddenException(
             'User not authenticated with Pterodactyl',
           );
@@ -96,7 +98,7 @@ export class ChangeGameService {
         span.setAttribute('game.name', newGameData.name);
 
         // 2. Kill the server
-        await this.killServer(serverId, user.ptKey);
+        await this.killServer(ptServerId, gameServer.user.ptKey);
 
         // Small delay to ensure server is fully stopped
         await this.delay(200);
@@ -112,7 +114,7 @@ export class ChangeGameService {
         await this.ports.correctPorts(
           gameServer.ptServerId,
           newGameData.slug,
-          user,
+          gameServer.user,
         );
 
         await this.delay(1000);
@@ -133,12 +135,19 @@ export class ChangeGameService {
         });
 
         await this.delay(500);
+        if (deleteFiles) {
+          await this.DeleteAllFilesUserServer(
+            gameServer.ptServerId,
+            gameServer.user.ptKey,
+          );
+          await this.delay(500);
+        }
 
         // 7. Reinstall the server
-        await this.reinstallServer(serverId, user.ptKey, deleteFiles);
+        await this.reinstallServer(ptServerId, gameServer.user.ptKey);
 
         this.logger.log(
-          `Changed game for server ${serverId} to ${newGameData.name} (gameId: ${gameId})`,
+          `Changed game for server ${ptServerId} to ${newGameData.name} (gameId: ${gameId})`,
         );
 
         span.setAttribute('changeGame.success', true);
@@ -246,9 +255,9 @@ export class ChangeGameService {
   private async reinstallServer(
     serverId: string,
     userPtKey: string,
-    deleteFiles: boolean,
   ): Promise<void> {
     // Use the client API to reinstall (this respects user permissions)
+    console.log('delete files over PT API');
     const response = await fetch(
       `${this.ptUrl}/api/client/servers/${serverId}/settings/reinstall`,
       {
@@ -258,7 +267,6 @@ export class ChangeGameService {
           Authorization: `Bearer ${userPtKey}`,
           Accept: 'application/json',
         },
-        body: JSON.stringify({ delete_files: deleteFiles }),
       },
     );
 
@@ -273,5 +281,48 @@ export class ChangeGameService {
 
   private delay(ms: number): Promise<void> {
     return new Promise((resolve) => setTimeout(resolve, ms));
+  }
+
+  private async DeleteAllFilesUserServer(server: string, apiKey: string) {
+    const headers = {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${apiKey}`,
+      Accept: 'application/json',
+    };
+
+    const response = await fetch(
+      `${this.ptUrl}/api/client/servers/${server}/files/list`,
+      {
+        method: 'GET',
+        headers: headers,
+      },
+    );
+
+    if (!response.ok) {
+      throw new Error(`Error fetching file list: ${response.statusText}`);
+    }
+
+    console.log(`Deleting all Files for server ${server}`);
+
+    const data = await response.json();
+    const files = data.data;
+
+    const toDelete = files
+      .filter((path: string) => path !== '/')
+      .map((file: any) => file.attributes.name);
+
+    const deleted = await fetch(
+      `${this.ptUrl}/api/client/servers/${server}/files/delete`,
+      {
+        method: 'POST',
+        headers: headers,
+        body: JSON.stringify({
+          root: '/',
+          files: toDelete,
+        }),
+      },
+    );
+
+    return deleted;
   }
 }

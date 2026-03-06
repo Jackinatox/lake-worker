@@ -15,6 +15,7 @@ import { Queue } from 'bullmq';
 import { InjectQueue } from '@nestjs/bullmq';
 import { ChangeGameDto } from './dto/ChangeGameDto';
 import { ChangeGameService } from './services/change-game.service';
+import { LoggerService } from 'src/core/logger.service';
 
 @Controller({
   path: 'queue',
@@ -24,6 +25,7 @@ export class ProvisioningController {
   constructor(
     private provisioningService: QueueProvisionService,
     private changeGameService: ChangeGameService,
+    private logger: LoggerService,
     @InjectQueue('provisioning') private provisioningQueue: Queue,
   ) {}
 
@@ -74,8 +76,9 @@ export class ProvisioningController {
   @Post('changeGame')
   @HttpCode(HttpStatus.OK)
   async changeGame(@Body() dto: ChangeGameDto) {
+    this.logger.log('Changing Game', { changeGamedatato: dto });
     return this.changeGameService.changeGame({
-      serverId: dto.serverId,
+      ptServerId: dto.ptServerId,
       gameId: dto.gameId,
       gameConfig: dto.gameConfig,
       deleteFiles: dto.deleteFiles,

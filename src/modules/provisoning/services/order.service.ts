@@ -43,6 +43,7 @@ const ORDER_TYPE_TO_SERVER_TYPE: Record<OrderType, GameServerType> = {
   [OrderType.TO_PAYED]: GameServerType.CUSTOM,
   [OrderType.UPGRADE]: GameServerType.CUSTOM,
   [OrderType.PACKAGE]: GameServerType.PACKAGE,
+  [OrderType.CONFIGURED]: GameServerType.CUSTOM,
 };
 
 /**

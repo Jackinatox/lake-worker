@@ -119,7 +119,7 @@ export default function ServerBookingConfirmationTemplate({
             <tr>
               <td className="py-1.5 text-sm text-slate-500">RAM:</td>
               <td className="py-1.5 text-right text-sm font-semibold text-slate-900">
-                {(ramMB / 1024).toFixed(1)} GB
+                {(ramMB / 1024).toFixed(1)} GiB
               </td>
             </tr>
             <tr>
@@ -131,7 +131,7 @@ export default function ServerBookingConfirmationTemplate({
             <tr>
               <td className="py-1.5 text-sm text-slate-500">Speicher:</td>
               <td className="py-1.5 text-right text-sm font-semibold text-slate-900">
-                {(diskMB / 1024).toFixed(1)} GB
+                {(diskMB / 1024).toFixed(1)} GiB
               </td>
             </tr>
             <tr>

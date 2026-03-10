@@ -457,6 +457,16 @@ export class PterodactylPortService {
 
       span.setAttribute('port.actualAllocations', allocations.length);
 
+      const primaryAllocation = allocations.find((a) => a.is_default);
+      if (primaryAllocation) {
+        await this.updateAllocationNotes(
+          ptServerId,
+          apiKey,
+          primaryAllocation.id,
+          'Primary Game Port',
+        );
+      }
+
       const portsConfigured: string[] = [];
 
       if (
@@ -470,6 +480,13 @@ export class PterodactylPortService {
 
           if (portConfig.isSecondary && secondaryAllocations[i]) {
             const allocation = secondaryAllocations[i];
+
+            await this.updateAllocationNotes(
+              ptServerId,
+              apiKey,
+              allocation.id,
+              portConfig.notes,
+            );
 
             await this.updateServerEnvironmentVariable(
               ptServerId,

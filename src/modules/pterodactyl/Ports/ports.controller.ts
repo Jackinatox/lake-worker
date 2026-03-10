@@ -25,35 +25,35 @@ export class PortsController {
   async reassignPorts(@Body() reassignPorts: ReassignPortsDTO) {
     return await this.tracer.startActiveSpan('correctPorts', async (span) => {
       this.logger.log('Reassign ports requested', {
-        serverId: reassignPorts.serverId,
+        ptServerId: reassignPorts.ptServerId,
       });
 
       const server = await this.prisma.gameServer.findFirst({
-        where: { ptServerId: reassignPorts.serverId },
+        where: { ptServerId: reassignPorts.ptServerId },
         include: { user: true, gameData: { select: { slug: true } } },
       });
 
       if (!server) {
         throw new BadRequestException(
-          `No server found for ptServerId: ${reassignPorts.serverId}`,
+          `No server found for ptServerId: ${reassignPorts.ptServerId}`,
         );
       }
 
       if (!server.gameData) {
         throw new BadRequestException(
-          `No game data found for server: ${reassignPorts.serverId}`,
+          `No game data found for server: ${reassignPorts.ptServerId}`,
         );
       }
 
       const result = await this.portService.correctPorts(
-        reassignPorts.serverId,
+        reassignPorts.ptServerId,
         server.gameData.slug,
         server.user,
       );
 
       if (result.error) {
         this.logger.error('Port reassignment failed', {
-          serverId: reassignPorts.serverId,
+          ptServerId: reassignPorts.ptServerId,
           error: result.error,
         });
         span.recordException(result.error);

@@ -15,36 +15,39 @@ All endpoints are prefixed with API versioning (`/v1`).
 ## Enums & Types
 
 ### WorkerJobType
+
 The types of scheduled jobs in the system:
 
-| Value | Description |
-|-------|-------------|
-| `EXPIRE_SERVERS` | Suspends game servers that have passed their expiration date |
-| `DELETE_SERVERS` | Permanently deletes expired servers after retention period (90 days) |
-| `SEND_EMAILS` | Processes and sends emails from the email queue |
-| `GENERATE_EMAILS` | Creates expiry reminder emails (1-day and 7-day warnings) |
-| `GENERATE_DELETION_EMAILS` | Creates deletion reminder emails for expired servers |
-| `CHECK_NEW_VERSIONS` | Checks for new game versions (future feature) |
+| Value                      | Description                                                          |
+| -------------------------- | -------------------------------------------------------------------- |
+| `EXPIRE_SERVERS`           | Suspends game servers that have passed their expiration date         |
+| `DELETE_SERVERS`           | Permanently deletes expired servers after retention period (90 days) |
+| `SEND_EMAILS`              | Processes and sends emails from the email queue                      |
+| `GENERATE_EMAILS`          | Creates expiry reminder emails (1-day and 7-day warnings)            |
+| `GENERATE_DELETION_EMAILS` | Creates deletion reminder emails for expired servers                 |
+| `CHECK_NEW_VERSIONS`       | Checks for new game versions (future feature)                        |
 
 ### JobRunStatus
+
 Status of a job execution:
 
-| Value | Description |
-|-------|-------------|
-| `RUNNING` | Job is currently executing |
-| `COMPLETED` | Job finished successfully |
-| `FAILED` | Job encountered an error |
+| Value       | Description                             |
+| ----------- | --------------------------------------- |
+| `RUNNING`   | Job is currently executing              |
+| `COMPLETED` | Job finished successfully               |
+| `FAILED`    | Job encountered an error                |
 | `CANCELLED` | Job was cancelled (manual intervention) |
 
 ### LogLevel
+
 Severity levels for job logs:
 
-| Value | Description |
-|-------|-------------|
-| `TRACE` | Detailed debugging information |
-| `INFO` | General informational messages |
-| `WARN` | Warning conditions |
-| `ERROR` | Error conditions |
+| Value   | Description                                   |
+| ------- | --------------------------------------------- |
+| `TRACE` | Detailed debugging information                |
+| `INFO`  | General informational messages                |
+| `WARN`  | Warning conditions                            |
+| `ERROR` | Error conditions                              |
 | `FATAL` | Critical errors requiring immediate attention |
 
 ---
@@ -58,20 +61,32 @@ Returns the current running status of all scheduled jobs.
 **Endpoint:** `GET /v1/jobs/status`
 
 **Response:**
+
 ```typescript
 {
   timestamp: string; // ISO 8601 timestamp
   jobs: {
-    ExpireServers: { isRunning: boolean };
-    DeleteServers: { isRunning: boolean };
-    SendEmails: { isRunning: boolean };
-    GenerateExpiryEmails: { isRunning: boolean };
-    GenerateDeletionEmails: { isRunning: boolean };
-  };
+    ExpireServers: {
+      isRunning: boolean;
+    }
+    DeleteServers: {
+      isRunning: boolean;
+    }
+    SendEmails: {
+      isRunning: boolean;
+    }
+    GenerateExpiryEmails: {
+      isRunning: boolean;
+    }
+    GenerateDeletionEmails: {
+      isRunning: boolean;
+    }
+  }
 }
 ```
 
 **Example Response:**
+
 ```json
 {
   "timestamp": "2026-01-20T15:30:00.000Z",
@@ -96,14 +111,15 @@ Returns a list of recent job executions with their results.
 **Endpoint:** `GET /v1/jobs/runs`
 
 **Response:**
+
 ```typescript
 {
   timestamp: string;
   runs: Array<{
-    id: string;           // Unique job run ID (cuid)
+    id: string; // Unique job run ID (cuid)
     jobType: WorkerJobType;
     status: JobRunStatus;
-    startedAt: string;    // ISO 8601 timestamp
+    startedAt: string; // ISO 8601 timestamp
     endedAt: string | null;
     itemsProcessed: number;
     itemsTotal: number;
@@ -114,6 +130,7 @@ Returns a list of recent job executions with their results.
 ```
 
 **Example Response:**
+
 ```json
 {
   "timestamp": "2026-01-20T15:30:00.000Z",
@@ -171,6 +188,7 @@ Returns detailed information about a specific job run including all logs.
 | `id` | string | The job run ID (cuid) |
 
 **Response (Success):**
+
 ```typescript
 {
   id: string;
@@ -209,6 +227,7 @@ Returns detailed information about a specific job run including all logs.
 ```
 
 **Response (Not Found):**
+
 ```json
 {
   "error": "Job run not found"
@@ -216,6 +235,7 @@ Returns detailed information about a specific job run including all logs.
 ```
 
 **Example Response:**
+
 ```json
 {
   "id": "cm5abc123def456",
@@ -326,6 +346,7 @@ Manually triggers a specific job to run immediately.
 | `jobName` | string | One of: `ExpireServers`, `DeleteServers`, `SendEmails`, `GenerateExpiryEmails`, `GenerateDeletionEmails` |
 
 **Response (Success):**
+
 ```typescript
 {
   timestamp: string;
@@ -334,11 +355,12 @@ Manually triggers a specific job to run immediately.
     processed: number;
     total: number;
     failed: number;
-  };
+  }
 }
 ```
 
 **Response (Failure):**
+
 ```typescript
 {
   timestamp: string;
@@ -348,6 +370,7 @@ Manually triggers a specific job to run immediately.
 ```
 
 **Example Success Response:**
+
 ```json
 {
   "timestamp": "2026-01-20T15:35:00.000Z",
@@ -361,6 +384,7 @@ Manually triggers a specific job to run immediately.
 ```
 
 **Example Error Response:**
+
 ```json
 {
   "timestamp": "2026-01-20T15:35:00.000Z",
@@ -375,13 +399,13 @@ Manually triggers a specific job to run immediately.
 
 ## Scheduled Job Details
 
-| Job Name | Schedule | Description |
-|----------|----------|-------------|
-| `ExpireServers` | Every hour | Finds servers past expiration date and suspends them via Pterodactyl API |
-| `DeleteServers` | Daily at 3:00 AM | Permanently deletes servers expired for more than 90 days |
-| `SendEmails` | Every 5 minutes | Processes email queue and sends pending emails via SMTP |
-| `GenerateExpiryEmails` | Daily at 8:00 AM | Creates reminder emails for servers expiring in 1 or 7 days |
-| `GenerateDeletionEmails` | Daily at 9:00 AM | Creates reminder emails for servers being deleted in 1 or 7 days |
+| Job Name                 | Schedule         | Description                                                              |
+| ------------------------ | ---------------- | ------------------------------------------------------------------------ |
+| `ExpireServers`          | Every hour       | Finds servers past expiration date and suspends them via Pterodactyl API |
+| `DeleteServers`          | Daily at 3:00 AM | Permanently deletes servers expired for more than 90 days                |
+| `SendEmails`             | Every 5 minutes  | Processes email queue and sends pending emails via SMTP                  |
+| `GenerateExpiryEmails`   | Daily at 8:00 AM | Creates reminder emails for servers expiring in 1 or 7 days              |
+| `GenerateDeletionEmails` | Daily at 9:00 AM | Creates reminder emails for servers being deleted in 1 or 7 days         |
 
 ---
 
@@ -390,13 +414,17 @@ Manually triggers a specific job to run immediately.
 ### Recommended Dashboard Components
 
 #### 1. Job Status Overview Card
+
 Display real-time status of all jobs:
+
 - Green indicator: Job idle
 - Blue/spinning indicator: Job running
 - Use polling every 10-30 seconds on `GET /v1/jobs/status`
 
 #### 2. Recent Job Runs Table
+
 Columns to display:
+
 - Job Type (with icon/color coding)
 - Status (badge: green=completed, red=failed, blue=running)
 - Started At (relative time, e.g., "5 minutes ago")
@@ -406,6 +434,7 @@ Columns to display:
 - Actions (view details button)
 
 #### 3. Job Run Detail View
+
 - Header with job type, status badge, timing info
 - Summary stats: processed, total, failed
 - Error message display (if failed)
@@ -418,27 +447,31 @@ Columns to display:
   - Links to related game server/user
 
 #### 4. Manual Trigger Buttons
+
 - Confirmation modal before triggering
 - Show loading state while job executes
 - Display result toast notification
 
 ### Suggested UI Libraries
+
 - **Table:** TanStack Table, AG Grid, or similar
 - **Charts:** For job history trends (optional)
 - **Toast notifications:** For trigger results
 - **JSON viewer:** For metadata/details display
 
 ### Polling Strategy
+
 ```typescript
 // Recommended polling intervals
 const POLLING_INTERVALS = {
-  jobStatus: 15000,    // 15 seconds
-  recentRuns: 30000,   // 30 seconds
-  runDetails: 5000,    // 5 seconds (only when viewing details of RUNNING job)
+  jobStatus: 15000, // 15 seconds
+  recentRuns: 30000, // 30 seconds
+  runDetails: 5000, // 5 seconds (only when viewing details of RUNNING job)
 };
 ```
 
 ### Status Color Mapping
+
 ```typescript
 const STATUS_COLORS = {
   RUNNING: 'blue',
@@ -471,12 +504,12 @@ const JOB_TYPE_ICONS = {
 
 All endpoints may return standard HTTP error codes:
 
-| Code | Description |
-|------|-------------|
-| 200 | Success |
-| 400 | Bad request (invalid job name) |
-| 404 | Job run not found |
-| 500 | Internal server error |
+| Code | Description                    |
+| ---- | ------------------------------ |
+| 200  | Success                        |
+| 400  | Bad request (invalid job name) |
+| 404  | Job run not found              |
+| 500  | Internal server error          |
 
 ---
 
@@ -484,7 +517,7 @@ All endpoints may return standard HTTP error codes:
 
 ```typescript
 // Enums
-type WorkerJobType = 
+type WorkerJobType =
   | 'EXPIRE_SERVERS'
   | 'SEND_EMAILS'
   | 'GENERATE_EMAILS'

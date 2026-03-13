@@ -5,15 +5,18 @@
 **Navigation:** Configuration → Data Sources → Loki (or Add data source)
 
 ### Basic Settings:
+
 ```
 Name: Loki
 URL: http://10.1.17.5:3100
 ```
 
 ### Derived Fields (for Trace Correlation):
+
 Click **"+ Add"** under Derived fields:
 
 **Field 1 - TraceID:**
+
 - **Name:** `TraceID`
 - **Regex:** `"trace_id":"([a-f0-9]+)"`
 - **Internal Link:** ✓ (checked)
@@ -29,12 +32,14 @@ Click **Save & Test**
 **Navigation:** Configuration → Data Sources → Tempo (or Add data source)
 
 ### Basic Settings:
+
 ```
 Name: Tempo
 URL: http://10.1.17.5:3200
 ```
 
 ### Trace to Logs Configuration:
+
 Scroll down to **"Trace to logs"** section:
 
 ```
@@ -45,11 +50,13 @@ Filter by Span ID: ☐ (unchecked - optional)
 ```
 
 **Query Template:**
+
 ```
 {job="nest-lake-worker"} |= `$${__span.traceId}`
 ```
 
 Or if you want more filtering:
+
 ```
 {job="nest-lake-worker", environment="development"} | json | trace_id=`$${__span.traceId}`
 ```
@@ -61,6 +68,7 @@ Click **Save & Test**
 ## 3. Test the Integration
 
 ### From Tempo to Logs:
+
 1. Go to **Explore**
 2. Select **Tempo** data source
 3. Click **Search** (or use TraceQL)
@@ -69,6 +77,7 @@ Click **Save & Test**
 6. Click it to see correlated logs
 
 ### From Logs to Traces:
+
 1. Go to **Explore**
 2. Select **Loki** data source
 3. Query: `{job="nest-lake-worker"}`
@@ -80,26 +89,31 @@ Click **Save & Test**
 ## 4. Useful Loki Queries
 
 ### All logs from your service:
+
 ```
 {job="nest-lake-worker"}
 ```
 
 ### Logs for a specific trace:
+
 ```
 {job="nest-lake-worker"} | json | trace_id="YOUR_TRACE_ID_HERE"
 ```
 
 ### Error logs only:
+
 ```
 {job="nest-lake-worker"} | json | level="error"
 ```
 
 ### Logs with specific message pattern:
+
 ```
 {job="nest-lake-worker"} |~ "complex operation"
 ```
 
 ### Logs for a specific user:
+
 ```
 {job="nest-lake-worker"} | json | userId="123"
 ```
@@ -109,21 +123,25 @@ Click **Save & Test**
 ## 5. Useful Tempo Queries (TraceQL)
 
 ### All traces:
+
 ```
 {}
 ```
 
 ### Traces with errors:
+
 ```
 {status=error}
 ```
 
 ### Traces for specific operation:
+
 ```
 {name="service.complex-operation"}
 ```
 
 ### Traces longer than 200ms:
+
 ```
 {duration>200ms}
 ```
@@ -153,6 +171,7 @@ Your logs will appear in Loki like this:
 ## 7. Troubleshooting
 
 ### Can't see logs in Loki?
+
 ```bash
 # Check Loki is accessible
 curl http://10.1.17.5:3100/ready
@@ -165,11 +184,13 @@ curl http://10.1.17.5:3100/loki/api/v1/label/job/values
 ```
 
 ### Trace ID links not appearing?
+
 - Verify the regex pattern in Derived Fields matches your log format
 - Check that trace_id appears in your logs (query Loki and inspect log line)
 - Ensure Tempo data source is selected in the Derived Field configuration
 
 ### Can't jump from Tempo to Logs?
+
 - Verify the Query Template in Tempo's "Trace to logs" section
 - Check that the job label matches what you're using in Loki
 - Test the query manually in Loki Explore with a known trace_id
@@ -181,16 +202,19 @@ curl http://10.1.17.5:3100/loki/api/v1/label/job/values
 ### Create a Dashboard Panel:
 
 **Panel 1: Trace Volume**
+
 - Data source: Tempo
 - Visualization: Time series
 - Query: `{}`
 
 **Panel 2: Error Logs**
+
 - Data source: Loki
 - Visualization: Logs
 - Query: `{job="nest-lake-worker"} | json | level="error"`
 
 **Panel 3: Latency Heatmap**
+
 - Data source: Tempo
 - Visualization: Heatmap
 - Query: TraceQL with duration metrics
@@ -202,6 +226,7 @@ curl http://10.1.17.5:3100/loki/api/v1/label/job/values
 If you need to configure data sources via file:
 
 **loki-datasource.yaml:**
+
 ```yaml
 apiVersion: 1
 datasources:
@@ -211,12 +236,13 @@ datasources:
     jsonData:
       derivedFields:
         - datasourceUid: tempo
-          matcherRegex: "trace_id\":\"([a-f0-9]+)"
+          matcherRegex: 'trace_id":"([a-f0-9]+)'
           name: TraceID
           url: '$${__value.raw}'
 ```
 
 **tempo-datasource.yaml:**
+
 ```yaml
 apiVersion: 1
 datasources:

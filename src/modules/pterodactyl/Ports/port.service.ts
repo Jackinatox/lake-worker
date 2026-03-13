@@ -202,60 +202,27 @@ export class PterodactylPortService {
 
       span.setAttribute('allocation.currentCount', currentCount);
 
-      if (currentCount === targetCount) {
+      if (currentCount >= targetCount) {
         this.logger.debug(
-          `Server ${serverId} already has ${targetCount} allocations`,
+          `Server ${serverId} already has ${currentCount} allocations (need ${targetCount}), keeping existing`,
         );
         span.end();
         return currentAllocations;
       }
 
-      if (currentCount < targetCount) {
-        // Add allocations
-        const allocationsToAdd = targetCount - currentCount;
-        span.setAttribute('allocation.toAdd', allocationsToAdd);
+      // Add allocations to reach target count
+      const allocationsToAdd = targetCount - currentCount;
+      span.setAttribute('allocation.toAdd', allocationsToAdd);
 
-        for (let i = 0; i < allocationsToAdd; i++) {
-          try {
-            await this.assignAllocation(serverId, apiKey);
-          } catch (error) {
-            this.logger.error(
-              `Failed to add allocation ${i + 1} of ${allocationsToAdd} to server ${serverId}`,
-            );
-            span.end();
-            throw error;
-          }
-        }
-      } else {
-        // Remove allocations (cannot remove primary)
-        const allocationsToRemove = currentCount - targetCount;
-        span.setAttribute('allocation.toRemove', allocationsToRemove);
-
-        const nonPrimaryAllocations = currentAllocations.filter(
-          (a) => !a.is_default,
-        );
-
-        if (nonPrimaryAllocations.length < allocationsToRemove) {
-          span.end();
-          throw new Error(
-            `Cannot remove ${allocationsToRemove} allocations - only ${nonPrimaryAllocations.length} non-primary allocations available`,
+      for (let i = 0; i < allocationsToAdd; i++) {
+        try {
+          await this.assignAllocation(serverId, apiKey);
+        } catch (error) {
+          this.logger.error(
+            `Failed to add allocation ${i + 1} of ${allocationsToAdd} to server ${serverId}`,
           );
-        }
-
-        for (let i = 0; i < allocationsToRemove; i++) {
-          try {
-            await this.removeAllocation(
-              serverId,
-              nonPrimaryAllocations[i].id,
-              apiKey,
-            );
-          } catch (error) {
-            this.logger.error(
-              `Failed to remove allocation ${i + 1} of ${allocationsToRemove} from server ${serverId}`,
-            );
-            span.end();
-            throw error;
-          }
+          span.end();
+          throw error;
         }
       }
 

@@ -3,6 +3,7 @@
 ## What's Configured
 
 Your NestJS application now sends:
+
 - **Traces** to Tempo via OTLP HTTP (port 4318)
 - **Logs** to Loki via HTTP (port 3100)
 - All logs automatically include `trace_id` and `span_id` from OpenTelemetry
@@ -12,7 +13,7 @@ Your NestJS application now sends:
 ```
 NestJS App → Tempo (traces with trace_id)
           → Loki (logs with trace_id & span_id)
-          
+
 Grafana → Reads from both Tempo & Loki
        → Correlates them using trace_id
 ```
@@ -44,6 +45,7 @@ URL: http://10.1.17.5:3100
 In your Loki data source settings, add a **Derived Field**:
 
 **For trace_id:**
+
 - **Name**: `trace_id`
 - **Regex**: `"trace_id":"(\w+)"`
 - **Internal Link**: `true`
@@ -74,11 +76,13 @@ This tells Tempo how to find related logs in Loki when viewing a trace.
 ## Testing the Integration
 
 ### 1. Start your application:
+
 ```bash
 pnpm start:dev
 ```
 
 ### 2. Generate some traffic:
+
 ```bash
 curl http://localhost:3000/complex/123/process
 ```
@@ -86,6 +90,7 @@ curl http://localhost:3000/complex/123/process
 ### 3. View in Grafana:
 
 **Option A: Start from Trace (Tempo)**
+
 1. Go to Explore → Select Tempo
 2. Search for recent traces
 3. Click on a trace
@@ -93,6 +98,7 @@ curl http://localhost:3000/complex/123/process
 5. Click it to see correlated logs from Loki
 
 **Option B: Start from Logs (Loki)**
+
 1. Go to Explore → Select Loki
 2. Query: `{job="nest-lake-worker"}`
 3. Find a log line with a trace_id
@@ -112,14 +118,14 @@ export class YourService {
     this.logger.log('Something happened');
     this.logger.error('An error occurred');
     this.logger.warn('Warning message');
-    
+
     // Structured logging with context
     this.logger.logWithContext('info', 'User action', {
       userId: 123,
       action: 'purchase',
-      amount: 99.99
+      amount: 99.99,
     });
-    
+
     // Within a traced span, logs will automatically include:
     // - trace_id
     // - span_id
@@ -137,7 +143,7 @@ Edit [src/core/logger.service.ts](src/core/logger.service.ts):
 ```typescript
 new LokiTransport({
   host: 'http://YOUR_LOKI_HOST:3100',
-  labels: { 
+  labels: {
     job: 'nest-lake-worker',
     environment: 'production' // Change as needed
   },
@@ -148,7 +154,7 @@ new LokiTransport({
 ### Add More Labels
 
 ```typescript
-labels: { 
+labels: {
   job: 'nest-lake-worker',
   environment: process.env.NODE_ENV || 'development',
   hostname: require('os').hostname(),
@@ -172,6 +178,7 @@ this.logger = createLogger({
 ### Logs not appearing in Loki
 
 1. Check Loki is accessible:
+
 ```bash
 curl http://10.1.17.5:3100/ready
 ```
@@ -179,6 +186,7 @@ curl http://10.1.17.5:3100/ready
 2. Check Winston-Loki connection errors in console
 
 3. Verify labels are correct in Loki:
+
 ```bash
 curl http://10.1.17.5:3100/loki/api/v1/labels
 ```
@@ -192,20 +200,23 @@ curl http://10.1.17.5:3100/loki/api/v1/labels
 ### Performance Considerations
 
 For production:
+
 - Consider batching logs before sending to Loki
 - Adjust `winston-loki` batch settings:
+
 ```typescript
 new LokiTransport({
   host: 'http://10.1.17.5:3100',
   batching: true,
   interval: 5, // seconds
   // ...
-})
+});
 ```
 
 ## What You Get in Grafana
 
 When viewing a trace in Tempo, you'll see:
+
 - Complete trace tree with all spans
 - Timing information
 - **"Logs for this span"** section showing:
@@ -214,6 +225,7 @@ When viewing a trace in Tempo, you'll see:
   - Full context of what happened
 
 This makes debugging much easier because you can:
+
 - See the execution flow (trace)
 - See what was logged during each step (logs)
 - Jump between traces and logs seamlessly

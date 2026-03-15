@@ -153,15 +153,19 @@ model GameServerOrder {
   price       Float
 
   receipt_url         String?
+  invoicePdfUrl       String?
+  receiptPdfUrl       String?
   stripeSessionId     String?      @unique
   stripePaymentIntent String?      @unique
   stripeChargeId      String?      @unique
+  stripeInvoiceId     String?      @unique
   stripeClientSecret  String?
   status              OrderStatus  @default(PENDING)
   refundStatus        RefundStatus @default(NONE)
   errorText           String? // This is just to save any orbitarry error to show the user something
 
   expiresAt DateTime // New expiry date *if* order succeeds
+  paidAt    DateTime? // Set from Stripe charge.created timestamp when webhook is received
 
   gameConfig         Json? // This is the same as the GameConfig in models
   creationGameDataId Int
@@ -463,11 +467,12 @@ enum LogType {
 }
 
 model ApplicationLog {
-  id      Int      @id @default(autoincrement())
-  level   LogLevel
-  type    LogType
-  message String
-  details Json?
+  id         Int      @id @default(autoincrement())
+  level      LogLevel
+  type       LogType
+  instanceId String
+  message    String
+  details    Json?
 
   // Request context
   method    String?
@@ -541,6 +546,14 @@ enum EmailType {
   WITHDRAWAL
 }
 
+enum ChangelogEntryType {
+  NEW
+  IMPROVED
+  FIXED
+  SECURITY
+  REMOVED
+}
+
 enum KeyValueType {
   STRING
   JSON
@@ -583,14 +596,13 @@ model Package {
   discountPercent Float    @default(0)
   enabled         Boolean  @default(true)
 
-  createdAt               DateTime                 @default(now())
-  updatedAt               DateTime                 @updatedAt
-  hardwareRecommendations HardwareRecommendation[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model ResourceTier {
   id         Int     @id @default(autoincrement())
-  name       String
+  name       String?
   diskMB     Int
   backups    Int
   ports      Int
@@ -600,6 +612,8 @@ model ResourceTier {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  hardwareRecommendations HardwareRecommendation[]
 }
 
 model TwoFactor {
@@ -631,19 +645,50 @@ model GameDataFeature {
 }
 
 model HardwareRecommendation {
-  id                   Int      @id @default(autoincrement())
-  eggId                Int? // Optinal egg id for games like minecraft which uses many eggs
-  gameDataId           Int
-  gameData             GameData @relation(fields: [gameDataId], references: [id], onDelete: Restrict)
-  minCpuPercent        Int
-  recCpuPercent        Int
-  minramMb             Int
-  recRamMb             Int
-  preselectedPackageId Int?
-  preselectedPackage   Package? @relation(fields: [preselectedPackageId], references: [id], onDelete: SetNull)
-  note                 String?
-  sorting              Int      @default(0)
+  id                        Int           @id @default(autoincrement())
+  eggId                     Int? // Optinal egg id for games like minecraft which uses many eggs
+  gameDataId                Int
+  gameData                  GameData      @relation(fields: [gameDataId], references: [id], onDelete: Restrict)
+  minCpuPercent             Int
+  recCpuPercent             Int
+  minramMb                  Int
+  recRamMb                  Int
+  preSelectedResourceTierId Int?
+  preSelectedResourceTier   ResourceTier? @relation(fields: [preSelectedResourceTierId], references: [id], onDelete: SetNull)
+  note                      String?
+  sorting                   Int           @default(0)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+model BlogPost {
+  id          String   @id @default(cuid())
+  slug        String   @unique
+  title       String
+  content     String
+  category    String   @default("")
+  published   Boolean  @default(false)
+  listed      Boolean  @default(true)
+  publishedAt DateTime
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  changelogEntries ChangelogEntry[]
+}
+
+model ChangelogEntry {
+  id          String             @id @default(cuid())
+  title       String
+  text        String
+  type        ChangelogEntryType @default(NEW)
+  published   Boolean            @default(false)
+  publishedAt DateTime
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  blogPostId String?
+  blogPost   BlogPost? @relation(fields: [blogPostId], references: [id], onDelete: SetNull)
 }

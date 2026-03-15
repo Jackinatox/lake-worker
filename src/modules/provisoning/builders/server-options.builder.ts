@@ -1,8 +1,4 @@
 import { NewServerOptions } from '@avionrx/pterodactyl-js';
-import {
-  calcBackups,
-  calcDiskSize,
-} from 'src/lib/pterodactyl/provision/ptResourceLogic';
 
 export interface ServerLimits {
   cpu: number;
@@ -80,15 +76,20 @@ export class ServerOptionsBuilder {
     return this;
   }
 
-  setResources(cpuPercent: number, ramMB: number): this {
+  setResources(
+    cpuPercent: number,
+    ramMiB: number,
+    diskMiB: number,
+    backups: number,
+  ): this {
     this.limits = {
       cpu: cpuPercent,
-      disk: calcDiskSize(cpuPercent, ramMB),
-      memory: ramMB,
+      disk: diskMiB,
+      memory: ramMiB,
       io: 500,
       swap: 512,
     };
-    this.featureLimits.backups = calcBackups(cpuPercent, ramMB);
+    this.featureLimits.backups = backups;
     return this;
   }
 

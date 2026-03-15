@@ -172,7 +172,12 @@ export class PterodactylService {
       .setUser(order.user.ptUserId)
       .setEgg(gameConfig.eggId)
       .setDockerImage(gameConfig.dockerImage)
-      .setResources(order.cpuPercent, order.ramMB)
+      .setResources(
+        order.cpuPercent,
+        order.ramMB,
+        order.diskMB,
+        order.backupCount,
+      )
       .setLocation(order.creationLocation.ptLocationId)
       .setEnvironment(environmentConfig)
       .setStartWhenInstalled(false)

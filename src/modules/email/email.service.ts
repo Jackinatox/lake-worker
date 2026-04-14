@@ -23,14 +23,16 @@ export class EmailService {
 
       await this.createAndSend(
         recipientEmail,
-        `Dein ${params.gameName} Server ist bereit!`,
+        `Dein ${params.gameName} Server wird installiert!`,
         html,
         EmailType.SERVER_BOOKING_CONFIRMATION,
       );
     } catch (error) {
       this.logger.error(
         'Failed to send server booking confirmation email',
-        error,
+        error instanceof Error
+          ? { message: error.message, stack: error.stack }
+          : undefined,
       );
     }
   }

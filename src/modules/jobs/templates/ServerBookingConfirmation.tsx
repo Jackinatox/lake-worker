@@ -63,7 +63,8 @@ export default function ServerBookingConfirmationTemplate({
 
       <Text className="mt-4 text-base leading-6 text-slate-600">
         Vielen Dank für deine Buchung! Dein {gameName} Server wurde erfolgreich
-        erstellt und wird gerade für dich eingerichtet.
+        erstellt und wird gerade für dich eingerichtet. Das dauert ein bis zwei
+        Minuten.
       </Text>
 
       <Section className="mt-6 rounded-lg border border-slate-200 bg-slate-50 p-4">

@@ -23,6 +23,12 @@ export class QueueProvisionService {
         user: true,
       },
     });
+    await this.prisma.gameServerOrder.update({
+      where: { id: orderId },
+      data: {
+        workerJobId: orderId,
+      },
+    });
 
     // Validate the order exists
     if (!order) {

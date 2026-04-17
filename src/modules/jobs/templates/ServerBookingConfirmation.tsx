@@ -16,6 +16,7 @@ export interface ServerBookingConfirmationTemplateProps {
   price: number;
   expiresAt: Date;
   serverUrl: string;
+  extensionUrl: string;
   isFreeServer: boolean;
 }
 
@@ -38,6 +39,7 @@ export default function ServerBookingConfirmationTemplate({
   price,
   expiresAt,
   serverUrl,
+  extensionUrl,
   isFreeServer,
 }: ServerBookingConfirmationTemplateProps): React.ReactElement {
   const formattedExpiresAt = new Intl.DateTimeFormat('de-DE', {
@@ -49,7 +51,6 @@ export default function ServerBookingConfirmationTemplate({
   }).format(expiresAt);
 
   const previewText = `Dein ${gameName} Server wurde erfolgreich gebucht!`;
-  const actionLabel = isFreeServer ? 'Server verlängern' : 'Server verwalten';
 
   return (
     <EmailLayout preview={previewText}>
@@ -183,12 +184,29 @@ export default function ServerBookingConfirmationTemplate({
       )}
 
       <Section className="mt-6">
-        <Button
-          href={serverUrl}
-          className="inline-block rounded-full bg-slate-900 px-6 py-3 text-base font-semibold text-white no-underline"
-        >
-          {actionLabel}
-        </Button>
+        {isFreeServer ? (
+          <>
+            <Button
+              href={serverUrl}
+              className="inline-block rounded-full bg-slate-900 px-6 py-3 text-base font-semibold text-white no-underline"
+            >
+              Server Dashboard
+            </Button>
+            <Button
+              href={extensionUrl}
+              className="ml-3 inline-block rounded-full border border-slate-900 bg-white px-6 py-3 text-base font-semibold text-slate-900 no-underline"
+            >
+              Server verlängern
+            </Button>
+          </>
+        ) : (
+          <Button
+            href={serverUrl}
+            className="inline-block rounded-full bg-slate-900 px-6 py-3 text-base font-semibold text-white no-underline"
+          >
+            Server verwalten
+          </Button>
+        )}
       </Section>
 
       <Text className="mt-4 text-base leading-6 text-slate-600">

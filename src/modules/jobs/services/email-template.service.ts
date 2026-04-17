@@ -4,8 +4,6 @@ import { render } from '@react-email/render';
 // Email template components will be created as React components
 import ExpiresInXDaysTemplate from '../templates/ExpiresInXDays';
 import DeleteInXDaysTemplate from '../templates/DeleteInXDays';
-import ServerExpiredTemplate from '../templates/ServerExpired';
-import ServerBookingConfirmationTemplate from '../templates/ServerBookingConfirmation';
 
 @Injectable()
 export class EmailTemplateService {
@@ -59,49 +57,6 @@ export class EmailTemplateService {
         serverId: params.serverId,
       }),
     );
-    return html;
-  }
-
-  /**
-   * Render server expired email
-   */
-  async renderServerExpiredEmail(params: {
-    username: string;
-    serverName: string;
-    expiredAt: Date;
-    deleteDate: Date;
-    serverId: string;
-    isFreeServer: boolean;
-  }): Promise<string> {
-    const html = await render(
-      ServerExpiredTemplate({
-        username: params.username,
-        serverName: params.serverName,
-        expiredAt: params.expiredAt,
-        deleteDate: params.deleteDate,
-        serverId: params.serverId,
-        isFreeServer: params.isFreeServer,
-      }),
-    );
-    return html;
-  }
-
-  async renderServerBookinConfirmation(params: {
-    userName: string;
-    userEmail: string;
-    gameName: string;
-    gameImageUrl: string;
-    serverName: string;
-    ramMB: number;
-    cpuVCores: number;
-    diskMB: number;
-    location: string;
-    price: number;
-    expiresAt: Date;
-    serverUrl: string;
-    isFreeServer: boolean;
-  }): Promise<string> {
-    const html = await render(ServerBookingConfirmationTemplate(params));
     return html;
   }
 }

@@ -13,8 +13,7 @@ import { JobsModule } from './modules/jobs/jobs.module';
     CoreModule,
     BullModule.forRoot({
       connection: {
-        host: process.env.REDIS_HOST,
-        port: Number(process.env.REDIS_PORT),
+        url: process.env.REDIS_URL,
       },
       defaultJobOptions: { attempts: 3, delay: 5000 },
     }),

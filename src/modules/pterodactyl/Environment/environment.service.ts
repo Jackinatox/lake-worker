@@ -1,5 +1,20 @@
 import { Injectable } from '@nestjs/common';
-import { HytaleConfig, SatisfactoryConfig } from './GameConfig';
+import { FactorioConfig, HytaleConfig, SatisfactoryConfig } from './GameConfig';
+
+const FACTORIO_DEFAULTS = {
+  version: 'latest',
+  maxSlots: '20',
+  saveName: 'gamesave',
+  serverToken: 'undefined',
+  serverName: 'Factorio Server',
+  serverDescription: 'Factorio Server hosted by Scyed',
+  serverUsername: 'unnamed',
+  saveInterval: '10',
+  saveSlots: '5',
+  afkKick: '0',
+  startup:
+    'if [ ! -f "./saves/{{SAVE_NAME}}.zip" ]; then ./bin/x64/factorio --create ./saves/{{SAVE_NAME}}.zip --map-gen-settings data/map-gen-settings.json --map-settings data/map-settings.json; fi; ./bin/x64/factorio --port {{SERVER_PORT}} --server-settings data/server-settings.json --start-server saves/{{SAVE_NAME}}.zip',
+} as const;
 
 @Injectable()
 export class EnvironmentService {
@@ -98,6 +113,48 @@ export class EnvironmentService {
       startup:
         'java $( ((USE_AOT_CACHE)) && printf %s "-XX:AOTCache=Server/HytaleServer.aot" ) -Xms128M $( ((SERVER_MEMORY)) && printf %s "-Xmx${SERVER_MEMORY}M" ) -jar Server/HytaleServer.jar $( ((HYTALE_ALLOW_OP)) && printf %s "--allow-op" ) $( ((HYTALE_ACCEPT_EARLY_PLUGINS)) && printf %s "--accept-early-plugins" ) $( ((DISABLE_SENTRY)) && printf %s "--disable-sentry" ) --auth-mode ${HYTALE_AUTH_MODE} --assets Assets.zip --bind 0.0.0.0:${SERVER_PORT}',
     };
+    return startAndVars;
+  }
+  factorio(gameConfig: FactorioConfig): any {
+    const factorioVersion =
+      gameConfig.version === 'custom'
+        ? gameConfig.customVersion?.trim() || FACTORIO_DEFAULTS.version
+        : gameConfig.version;
+    const enabledDLCs = new Set(gameConfig.enabledDLCs);
+    const saveName = gameConfig.saveName.trim() || FACTORIO_DEFAULTS.saveName;
+    const serverDescription =
+      gameConfig.serverDescription.trim() ||
+      FACTORIO_DEFAULTS.serverDescription;
+
+    const startAndVars = {
+      environment: {
+        FACTORIO_VERSION: factorioVersion,
+        MAX_SLOTS:
+          gameConfig.maxSlots > 0
+            ? gameConfig.maxSlots.toString()
+            : FACTORIO_DEFAULTS.maxSlots,
+        SAVE_NAME: saveName,
+        SERVER_TOKEN: FACTORIO_DEFAULTS.serverToken,
+        SERVER_NAME: FACTORIO_DEFAULTS.serverName,
+        SERVER_DESC: serverDescription,
+        SERVER_USERNAME: FACTORIO_DEFAULTS.serverUsername,
+        SAVE_INTERVAL:
+          gameConfig.autoSaveInterval > 0
+            ? gameConfig.autoSaveInterval.toString()
+            : FACTORIO_DEFAULTS.saveInterval,
+        SAVE_SLOTS:
+          gameConfig.autoSaveSlots > 0
+            ? gameConfig.autoSaveSlots.toString()
+            : FACTORIO_DEFAULTS.saveSlots,
+        // The current UI only exposes AFK kick as a toggle, while the egg expects minutes.
+        AFK_KICK: gameConfig.afkKick ? '1' : FACTORIO_DEFAULTS.afkKick,
+        ELEVATED_RAILS_ENABLED: enabledDLCs.has('elevated-rails') ? '1' : '0',
+        QUALITY_ENABLED: enabledDLCs.has('quality') ? '1' : '0',
+        SPACE_AGE_ENABLED: enabledDLCs.has('space-age') ? '1' : '0',
+      },
+      startup: FACTORIO_DEFAULTS.startup,
+    };
+
     return startAndVars;
   }
 }

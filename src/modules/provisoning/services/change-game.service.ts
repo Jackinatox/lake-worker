@@ -11,6 +11,7 @@ import { EnvironmentService } from '../../pterodactyl/Environment/environment.se
 import { PterodactylPortService } from '../../pterodactyl/Ports/port.service';
 import { InstallationService } from '../../pterodactyl/Installation/installation.service';
 import {
+  FactorioConfig,
   HytaleConfig,
   MinecraftConfig,
   SatisfactoryConfig,
@@ -194,6 +195,11 @@ export class ChangeGameService {
       case 'hytale':
         envConfig = this.envService.hytale(
           gameConfig.gameSpecificConfig as HytaleConfig,
+        );
+        break;
+      case 'factorio':
+        envConfig = this.envService.factorio(
+          gameConfig.gameSpecificConfig as FactorioConfig,
         );
         break;
       default:

@@ -12,6 +12,7 @@ import {
 import { PterodactylClientService } from './services/pterodactyl-client.service';
 import { EnvironmentService } from '../pterodactyl/Environment/environment.service';
 import {
+  FactorioConfig,
   HytaleConfig,
   MinecraftConfig,
   SatisfactoryConfig,
@@ -204,6 +205,10 @@ export class PterodactylService {
       case 'hytale':
         return this.envService.hytale(
           gameConfig.gameSpecificConfig as HytaleConfig,
+        ) as EnvironmentConfig;
+      case 'factorio':
+        return this.envService.factorio(
+          gameConfig.gameSpecificConfig as FactorioConfig,
         ) as EnvironmentConfig;
       default:
         throw new Error(`Unsupported game slug: ${gameSlug}`);

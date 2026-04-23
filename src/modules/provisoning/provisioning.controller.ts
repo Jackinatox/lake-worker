@@ -79,7 +79,7 @@ export class ProvisioningController {
     this.logger.log('Changing Game', { changeGamedatato: dto });
     return this.changeGameService.changeGame({
       ptServerId: dto.ptServerId,
-      gameId: dto.gameId,
+      gameSlug: dto.gameSlug,
       gameConfig: dto.gameConfig,
       deleteFiles: dto.deleteFiles,
       userId: dto.userId,

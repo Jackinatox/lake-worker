@@ -19,7 +19,7 @@ import type { GameConfigBase } from './order.service';
 
 interface ChangeGameInput {
   ptServerId: string;
-  gameId: number;
+  gameSlug: string;
   gameConfig: GameConfigBase;
   deleteFiles?: boolean;
   userId: string;
@@ -51,14 +51,14 @@ export class ChangeGameService {
     return this.tracer.startActiveSpan('changeGame', async (span: Span) => {
       const {
         ptServerId,
-        gameId,
+        gameSlug,
         gameConfig,
         deleteFiles = true,
         userId,
       } = input;
 
       span.setAttribute('server.ptId', ptServerId);
-      span.setAttribute('game.newId', gameId);
+      span.setAttribute('game.newSlug', gameSlug);
       span.setAttribute('user.id', userId);
       span.setAttribute('deleteFiles', deleteFiles);
 
@@ -77,7 +77,7 @@ export class ChangeGameService {
               user: true,
             },
           }),
-          this.prisma.gameData.findUnique({ where: { id: gameId } }),
+          this.prisma.gameData.findUnique({ where: { slug: gameSlug } }),
         ]);
 
         if (!gameServer || !gameServer.ptServerId || !gameServer.ptAdminId) {
@@ -147,7 +147,7 @@ export class ChangeGameService {
         await this.reinstallServer(ptServerId, gameServer.user.ptKey);
 
         this.logger.log(
-          `Changed game for server ${ptServerId} to ${newGameData.name} (gameId: ${gameId})`,
+          `Changed game for server ${ptServerId} to ${newGameData.name} (gameSlug: ${gameSlug})`,
         );
 
         span.setAttribute('changeGame.success', true);

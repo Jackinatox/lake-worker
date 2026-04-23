@@ -1,17 +1,9 @@
-import {
-  IsBoolean,
-  IsInt,
-  IsObject,
-  IsOptional,
-  IsPositive,
-  IsString,
-} from 'class-validator';
+import { IsBoolean, IsObject, IsOptional, IsString } from 'class-validator';
 import type { GameConfigBase } from '../services/order.service';
 
 export class ChangeGameDto {
-  @IsInt({ message: 'gameId must be an integer' })
-  @IsPositive({ message: 'gameId must be a positive number' })
-  gameId: number;
+  @IsString({ message: 'gameSlug must be a string' })
+  gameSlug: string;
 
   @IsString({ message: 'serverId must be a string' })
   ptServerId: string;

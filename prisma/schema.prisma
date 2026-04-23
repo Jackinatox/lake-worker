@@ -87,6 +87,8 @@ model GameServer {
   diskMB       Int
   backupCount  Int
   allocations  Int
+  resourceTierId Int?
+  resourceTier   ResourceTier? @relation(fields: [resourceTierId], references: [id], onDelete: SetNull)
   expires      DateTime
   price        Float // To let the user extend his server at the original price in case we increase prices
   type         GameServerType @default(CUSTOM)
@@ -115,6 +117,8 @@ model GameServer {
   Email Email[]
 
   ApplicationLog ApplicationLog[]
+
+  @@index([resourceTierId])
 }
 
 enum GameServerType {
@@ -150,6 +154,8 @@ model GameServerOrder {
   diskMB      Int
   backupCount Int
   allocations Int
+  resourceTierId Int?
+  resourceTier   ResourceTier? @relation(fields: [resourceTierId], references: [id], onDelete: SetNull)
   price       Float
 
   invoicePdfUrl       String?
@@ -178,6 +184,7 @@ model GameServerOrder {
   updatedAt DateTime @updatedAt
 
   @@index([stripeSessionId])
+  @@index([resourceTierId])
 }
 
 enum OrderStatus {
@@ -617,6 +624,8 @@ model ResourceTier {
   updatedAt DateTime @updatedAt
 
   hardwareRecommendations HardwareRecommendation[]
+  GameServerOrders        GameServerOrder[]
+  GameServers             GameServer[]
 }
 
 model TwoFactor {

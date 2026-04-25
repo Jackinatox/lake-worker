@@ -11,6 +11,11 @@ export class AppController {
     return this.appService.getHello();
   }
 
+  @Get('version')
+  getVersion() {
+    return { version: this.appService.getVersion() };
+  }
+
   @Post('test-tracing')
   async testTracing(@Body() body: { userId?: number; action?: string }) {
     const tracer = trace.getTracer('test-api');

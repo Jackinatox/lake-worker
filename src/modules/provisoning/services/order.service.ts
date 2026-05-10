@@ -103,7 +103,7 @@ export class OrderService {
         expires: order.expiresAt,
         userId: order.user.id,
         gameDataId: order.creationGameData.id,
-        locationId: order.creationLocation.ptLocationId,
+        locationId: order.creationLocation.id,
         gameConfig: order.gameConfig || undefined,
         name: serverName,
         type: ORDER_TYPE_TO_SERVER_TYPE[order.type],

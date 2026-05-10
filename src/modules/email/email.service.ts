@@ -49,12 +49,14 @@ export class EmailService {
     subject: string,
     html: string,
     type: EmailType,
+    attachments?: { filename: string; data: Buffer; contentType: string }[],
   ): Promise<void> {
     const mail = await this.emailService.createEmail({
       recipient: recipient,
       subject: subject,
       html,
       type,
+      attachments,
     });
 
     await this.emailService.sendEmail(mail);

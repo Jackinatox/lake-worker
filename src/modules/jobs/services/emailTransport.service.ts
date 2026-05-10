@@ -2,9 +2,15 @@ import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from 'src/core/prisma.service';
 import { LoggerService } from 'src/core/logger.service';
-import { Email, EmailStatus } from 'src/generated/prisma/client';
+import {
+  Email,
+  EmailAttachment,
+  EmailStatus,
+} from 'src/generated/prisma/client';
 import * as nodemailer from 'nodemailer';
 import type { Transporter } from 'nodemailer';
+
+type EmailWithAttachments = Email & { attachments: EmailAttachment[] };
 
 @Injectable()
 export class EmailTransportService {
@@ -29,7 +35,9 @@ export class EmailTransportService {
   /**
    * Send an email from the queue
    */
-  async sendEmail(email: Email): Promise<{ success: boolean; error?: string }> {
+  async sendEmail(
+    email: EmailWithAttachments,
+  ): Promise<{ success: boolean; error?: string }> {
     const smtpUser = this.config.get<string>('SMTP_USER');
 
     try {
@@ -39,6 +47,11 @@ export class EmailTransportService {
         to: email.recipient,
         subject: email.subject,
         html: email.html,
+        attachments: email.attachments.map((a) => ({
+          filename: a.filename,
+          content: Buffer.from(a.data),
+          contentType: a.contentType,
+        })),
       });
 
       // Update email status to SENT
@@ -87,7 +100,7 @@ export class EmailTransportService {
   /**
    * Get pending emails for sending
    */
-  async getPendingEmails(limit: number = 20): Promise<Email[]> {
+  async getPendingEmails(limit: number = 20): Promise<EmailWithAttachments[]> {
     return this.prisma.email.findMany({
       where: {
         retries: { lt: 4 },
@@ -95,6 +108,7 @@ export class EmailTransportService {
       },
       take: limit,
       orderBy: { createdAt: 'asc' },
+      include: { attachments: true },
     });
   }
 
@@ -120,8 +134,9 @@ export class EmailTransportService {
     type: Email['type'];
     gameServerId?: string;
     expiresAt?: Date;
-  }): Promise<Email> {
-    return this.prisma.email.create({
+    attachments?: { filename: string; data: Buffer; contentType: string }[];
+  }): Promise<EmailWithAttachments> {
+    const email = await this.prisma.email.create({
       data: {
         recipient: data.recipient,
         subject: data.subject,
@@ -129,7 +144,18 @@ export class EmailTransportService {
         type: data.type,
         GameServerId: data.gameServerId,
         expiresAt: data.expiresAt,
+        attachments: data.attachments
+          ? {
+              create: data.attachments.map((a) => ({
+                filename: a.filename,
+                contentType: a.contentType,
+                data: Buffer.from(a.data),
+              })),
+            }
+          : undefined,
       },
+      include: { attachments: true },
     });
+    return email as EmailWithAttachments;
   }
 }

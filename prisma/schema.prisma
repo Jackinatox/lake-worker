@@ -18,10 +18,11 @@ model GameData {
   id       Int     @id @default(autoincrement())
   name     String
   slug     String  @unique
+  nestId   Int
   data     Json?
   enabled  Boolean @default(false)
   featured Boolean @default(false)
-  sorting  Int     @default(0)
+  sorting  Int
 
   GameServer GameServer[]
 
@@ -36,10 +37,10 @@ model Location {
   diskPrice    Float
   portsLimit   Int
   backupsLimit Int
-  enabled      Boolean @default(true)
+  enabled      Boolean @default(false)
   freeServer   Boolean @default(false)
-  ptLocationId Int     @default(1)
-  cpuId        Int     @default(1)
+  ptLocationId Int
+  cpuId        Int
   ramId        Int
   sorting      Int     @default(0)
 
@@ -57,11 +58,9 @@ model CPU {
   name         String
   cores        Int?
   threads      Int?
-  singleScore  Int?
-  multiScore   Int?
   maxThreads   Int
   minThreads   Int
-  pricePerCore Float  @default(0.2)
+  pricePerCore Float
 
   locations Location[]
 }
@@ -91,7 +90,7 @@ model GameServer {
   resourceTier   ResourceTier?  @relation(fields: [resourceTierId], references: [id], onDelete: SetNull)
   expires        DateTime
   price          Float // To let the user extend his server at the original price in case we increase prices
-  type           GameServerType @default(CUSTOM)
+  type           GameServerType
   lastExtended   DateTime       @default(now())
 
   ptServerId String?
@@ -179,13 +178,26 @@ model GameServerOrder {
   creationLocationId Int
   creationLocation   Location @relation(fields: [creationLocationId], references: [id], onDelete: Restrict)
 
-  refunds Refund[]
+  refunds    Refund[]
+  invoicePdf InvoicePdf?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@index([stripeSessionId])
   @@index([resourceTierId])
+}
+
+// Temporary: store invoice PDF bytes in DB until S3 migration.
+// invoicePdfUrl on GameServerOrder points to our own /api/invoice/{orderId}
+// route, so swapping the storage backend later won't break any callers.
+model InvoicePdf {
+  id      String          @id @default(cuid(2))
+  orderId String          @unique
+  order   GameServerOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  data    Bytes
+
+  createdAt DateTime @default(now())
 }
 
 enum OrderStatus {
@@ -503,7 +515,7 @@ model ApplicationLog {
   @@index([level, createdAt])
   @@index([type, createdAt])
   @@index([userId])
-  @@index([gameServerId]) 
+  @@index([gameServerId])
   @@index([path, method])
   @@index([createdAt])
 }

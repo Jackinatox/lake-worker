@@ -1,5 +1,10 @@
 import { Injectable } from '@nestjs/common';
-import { FactorioConfig, HytaleConfig, SatisfactoryConfig } from './GameConfig';
+import {
+  FactorioConfig,
+  HytaleConfig,
+  SatisfactoryConfig,
+  ValheimConfig,
+} from './GameConfig';
 
 const FACTORIO_DEFAULTS = {
   version: 'latest',
@@ -156,5 +161,42 @@ export class EnvironmentService {
     };
 
     return startAndVars;
+  }
+  valheim(gameConfig: ValheimConfig): any {
+    const sharedEnvironment = {
+      SERVER_NAME: gameConfig.server_name,
+      PASSWORD: gameConfig.password,
+      WORLD: gameConfig.world_name,
+      PUBLIC_SERVER: gameConfig.public_server ? '1' : '0',
+      ENABLE_CROSSPLAY: gameConfig.enable_crossplay ? '1' : '0',
+      AUTO_UPDATE: gameConfig.auto_update ? '1' : '0',
+      BACKUP_COUNT: gameConfig.backup_count.toString(),
+      BACKUP_INTERVAL: gameConfig.backup_interval.toString(),
+      BACKUP_SHORTTIME: gameConfig.backup_shorttime.toString(),
+      BACKUP_LONGTIME: gameConfig.backup_longtime.toString(),
+      SRCDS_APPID: '896660',
+      // Fixed/hidden — required by API even though non-editable
+      LD_LIBRARY_PATH: './linux64',
+      STOP: 'kill -2 $!; wait;',
+      CONSOLE_FILTER:
+        '/^\\(Filename:.*Line:[[:space:]]+[[:digit:]]+\\)$/d; /^([[:space:]]+)?$/d',
+    };
+
+    if (gameConfig.mode === 'modded') {
+      return {
+        environment: {
+          ...sharedEnvironment,
+          // TODO: replace MODPACK with the actual modded egg variable name + any other modded-specific vars
+          MODPACK: gameConfig.modpack ?? '',
+        },
+        // TODO: replace with actual modded egg startup command
+        startup: `MODDED_STARTUP_PLACEHOLDER`,
+      };
+    }
+
+    return {
+      environment: sharedEnvironment,
+      startup: `./valheim_server.x86_64 -nographics -batchmode -name "{{SERVER_NAME}}" -port {{SERVER_PORT}} -world "{{WORLD}}" -password "{{PASSWORD}}" -public {{PUBLIC_SERVER}} -saveinterval {{BACKUP_INTERVAL}} -backups {{BACKUP_COUNT}} -backupshort {{BACKUP_SHORTTIME}} -backuplong {{BACKUP_LONGTIME}} $( [[ {{ENABLE_CROSSPLAY}} -eq 1 ]] && echo " -crossplay ") > >(sed -uE "{{CONSOLE_FILTER}}") & trap "{{STOP}}" 15; wait $!`,
+    };
   }
 }

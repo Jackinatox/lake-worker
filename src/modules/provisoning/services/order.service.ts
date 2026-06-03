@@ -6,6 +6,7 @@ import {
   HytaleConfig,
   MinecraftConfig,
   SatisfactoryConfig,
+  ValheimConfig,
 } from 'src/modules/pterodactyl/Environment/GameConfig';
 
 export type GameServerOrder = Prisma.GameServerOrderGetPayload<{
@@ -32,7 +33,8 @@ export interface GameConfigBase {
     | SatisfactoryConfig
     | MinecraftConfig
     | FactorioConfig
-    | HytaleConfig;
+    | HytaleConfig
+    | ValheimConfig;
 }
 
 const ORDER_TYPE_TO_SERVER_TYPE: Record<OrderType, GameServerType> = {

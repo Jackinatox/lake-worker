@@ -16,6 +16,7 @@ import {
   HytaleConfig,
   MinecraftConfig,
   SatisfactoryConfig,
+  ValheimConfig,
 } from '../pterodactyl/Environment/GameConfig';
 import { Span, trace } from '@opentelemetry/api';
 import { LoggerService } from 'src/core/logger.service';
@@ -36,8 +37,15 @@ export function extractErrorMessage(error: unknown): string {
   if (Array.isArray(error)) {
     return error
       .map((e) => {
-        if (e && typeof e === 'object' && 'message' in e) {
-          return String((e as Record<string, unknown>).message);
+        if (e && typeof e === 'object') {
+          const obj = e as Record<string, unknown>;
+          if (typeof obj.detail === 'string') return obj.detail;
+          if (typeof obj.message === 'string') return obj.message;
+          try {
+            return JSON.stringify(e);
+          } catch {
+            return '[unserializable error]';
+          }
         }
         return String(e);
       })
@@ -209,6 +217,10 @@ export class PterodactylService {
       case 'factorio':
         return this.envService.factorio(
           gameConfig.gameSpecificConfig as FactorioConfig,
+        ) as EnvironmentConfig;
+      case 'valheim':
+        return this.envService.valheim(
+          gameConfig.gameSpecificConfig as ValheimConfig,
         ) as EnvironmentConfig;
       default:
         throw new Error(`Unsupported game slug: ${gameSlug}`);

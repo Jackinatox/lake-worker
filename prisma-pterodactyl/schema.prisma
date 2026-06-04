@@ -1,0 +1,589 @@
+generator client {
+  provider     = "prisma-client"
+  output       = "../src/generated/pterodactyl"
+  moduleFormat = "cjs"
+}
+
+datasource db {
+  provider = "mysql"
+}
+
+model activity_log_subjects {
+  id              BigInt        @id @default(autoincrement()) @db.UnsignedBigInt
+  activity_log_id BigInt        @db.UnsignedBigInt
+  subject_type    String
+  subject_id      BigInt        @db.UnsignedBigInt
+  activity_logs   activity_logs @relation(fields: [activity_log_id], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "activity_log_subjects_activity_log_id_foreign")
+
+  @@index([activity_log_id], map: "activity_log_subjects_activity_log_id_foreign")
+  @@index([subject_type, subject_id], map: "activity_log_subjects_subject_type_subject_id_index")
+}
+
+model activity_logs {
+  id                    BigInt                  @id @default(autoincrement()) @db.UnsignedBigInt
+  batch                 String?                 @db.Char(36)
+  event                 String
+  ip                    String
+  description           String?                 @db.Text
+  actor_type            String?
+  actor_id              BigInt?                 @db.UnsignedBigInt
+  api_key_id            Int?                    @db.UnsignedInt
+  properties            String                  @db.LongText
+  timestamp             DateTime                @default(now()) @db.Timestamp(0)
+  activity_log_subjects activity_log_subjects[]
+
+  @@index([actor_type, actor_id], map: "activity_logs_actor_type_actor_id_index")
+  @@index([event], map: "activity_logs_event_index")
+}
+
+model allocations {
+  id                                         Int       @id @default(autoincrement()) @db.UnsignedInt
+  node_id                                    Int       @db.UnsignedInt
+  ip                                         String
+  ip_alias                                   String?   @db.Text
+  port                                       Int       @db.UnsignedMediumInt
+  server_id                                  Int?      @db.UnsignedInt
+  notes                                      String?
+  created_at                                 DateTime? @db.Timestamp(0)
+  updated_at                                 DateTime? @db.Timestamp(0)
+  nodes                                      nodes     @relation(fields: [node_id], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "allocations_node_id_foreign")
+  servers_allocations_server_idToservers     servers?  @relation("allocations_server_idToservers", fields: [server_id], references: [id], onUpdate: Restrict, map: "allocations_server_id_foreign")
+  servers_servers_allocation_idToallocations servers?  @relation("servers_allocation_idToallocations")
+
+  @@unique([node_id, ip, port], map: "allocations_node_id_ip_port_unique")
+  @@index([server_id], map: "allocations_server_id_foreign")
+}
+
+model api_keys {
+  id                 Int       @id @default(autoincrement()) @db.UnsignedInt
+  user_id            Int       @db.UnsignedInt
+  key_type           Int       @default(0) @db.UnsignedTinyInt
+  identifier         String?   @unique(map: "api_keys_identifier_unique") @db.Char(16)
+  token              String    @db.Text
+  allowed_ips        String?   @db.Text
+  memo               String?   @db.Text
+  last_used_at       DateTime? @db.Timestamp(0)
+  expires_at         DateTime? @db.Timestamp(0)
+  created_at         DateTime? @db.Timestamp(0)
+  updated_at         DateTime? @db.Timestamp(0)
+  r_servers          Int       @default(0) @db.UnsignedTinyInt
+  r_nodes            Int       @default(0) @db.UnsignedTinyInt
+  r_allocations      Int       @default(0) @db.UnsignedTinyInt
+  r_users            Int       @default(0) @db.UnsignedTinyInt
+  r_locations        Int       @default(0) @db.UnsignedTinyInt
+  r_nests            Int       @default(0) @db.UnsignedTinyInt
+  r_eggs             Int       @default(0) @db.UnsignedTinyInt
+  r_database_hosts   Int       @default(0) @db.UnsignedTinyInt
+  r_server_databases Int       @default(0) @db.UnsignedTinyInt
+  users              users     @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "api_keys_user_id_foreign")
+
+  @@index([user_id], map: "api_keys_user_id_foreign")
+}
+
+model api_logs {
+  id         Int       @id @default(autoincrement()) @db.UnsignedInt
+  authorized Boolean
+  error      String?   @db.Text
+  key        String?   @db.Char(16)
+  method     String    @db.Char(6)
+  route      String    @db.Text
+  content    String?   @db.Text
+  user_agent String    @db.Text
+  request_ip String    @db.VarChar(45)
+  created_at DateTime? @db.Timestamp(0)
+  updated_at DateTime? @db.Timestamp(0)
+}
+
+model audit_logs {
+  id         BigInt   @id @default(autoincrement()) @db.UnsignedBigInt
+  uuid       String   @db.Char(36)
+  is_system  Boolean  @default(false)
+  user_id    Int?     @db.UnsignedInt
+  server_id  Int?     @db.UnsignedInt
+  action     String
+  subaction  String?
+  device     String   @db.LongText
+  metadata   String   @db.LongText
+  created_at DateTime @db.Timestamp(0)
+  servers    servers? @relation(fields: [server_id], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "audit_logs_server_id_foreign")
+  users      users?   @relation(fields: [user_id], references: [id], onUpdate: Restrict, map: "audit_logs_user_id_foreign")
+
+  @@index([action, server_id], map: "audit_logs_action_server_id_index")
+  @@index([server_id], map: "audit_logs_server_id_foreign")
+  @@index([user_id], map: "audit_logs_user_id_foreign")
+}
+
+model backups {
+  id            BigInt    @id @default(autoincrement()) @db.UnsignedBigInt
+  server_id     Int       @db.UnsignedInt
+  uuid          String    @unique(map: "backups_uuid_unique") @db.Char(36)
+  upload_id     String?   @db.Text
+  is_successful Boolean   @default(false)
+  is_locked     Int       @default(0) @db.UnsignedTinyInt
+  name          String
+  ignored_files String    @db.Text
+  disk          String
+  checksum      String?
+  bytes         BigInt    @default(0) @db.UnsignedBigInt
+  completed_at  DateTime? @db.Timestamp(0)
+  created_at    DateTime? @db.Timestamp(0)
+  updated_at    DateTime? @db.Timestamp(0)
+  deleted_at    DateTime? @db.Timestamp(0)
+  servers       servers   @relation(fields: [server_id], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "backups_server_id_foreign")
+
+  @@index([server_id], map: "backups_server_id_foreign")
+}
+
+model database_hosts {
+  id            Int         @id @default(autoincrement()) @db.UnsignedInt
+  name          String
+  host          String
+  port          Int         @db.UnsignedInt
+  username      String
+  password      String      @db.Text
+  max_databases Int?        @db.UnsignedInt
+  node_id       Int?        @db.UnsignedInt
+  created_at    DateTime?   @db.Timestamp(0)
+  updated_at    DateTime?   @db.Timestamp(0)
+  nodes         nodes?      @relation(fields: [node_id], references: [id], onUpdate: Restrict, map: "database_hosts_node_id_foreign")
+  databases     databases[]
+
+  @@index([node_id], map: "database_hosts_node_id_foreign")
+}
+
+model databases {
+  id               Int            @id @default(autoincrement()) @db.UnsignedInt
+  server_id        Int            @db.UnsignedInt
+  database_host_id Int            @db.UnsignedInt
+  database         String
+  username         String
+  remote           String         @default("%")
+  password         String         @db.Text
+  max_connections  Int?           @default(0)
+  created_at       DateTime?      @db.Timestamp(0)
+  updated_at       DateTime?      @db.Timestamp(0)
+  database_hosts   database_hosts @relation(fields: [database_host_id], references: [id], onUpdate: Restrict, map: "databases_database_host_id_foreign")
+  servers          servers        @relation(fields: [server_id], references: [id], onUpdate: Restrict, map: "databases_server_id_foreign")
+
+  @@unique([database_host_id, server_id, database], map: "databases_database_host_id_server_id_database_unique")
+  @@unique([database_host_id, username], map: "databases_database_host_id_username_unique")
+  @@index([server_id], map: "databases_server_id_foreign")
+}
+
+model egg_mount {
+  egg_id   Int    @db.UnsignedInt
+  mount_id Int    @db.UnsignedInt
+  eggs     eggs   @relation(fields: [egg_id], references: [id], onDelete: Cascade, map: "egg_mount_egg_id_foreign")
+  mounts   mounts @relation(fields: [mount_id], references: [id], onDelete: Cascade, map: "egg_mount_mount_id_foreign")
+
+  @@unique([egg_id, mount_id], map: "egg_mount_egg_id_mount_id_unique")
+  @@index([mount_id], map: "egg_mount_mount_id_foreign")
+}
+
+model egg_variables {
+  id               Int                @id @default(autoincrement()) @db.UnsignedInt
+  egg_id           Int                @db.UnsignedInt
+  name             String
+  description      String             @db.Text
+  env_variable     String
+  default_value    String             @db.Text
+  user_viewable    Int                @db.UnsignedTinyInt
+  user_editable    Int                @db.UnsignedTinyInt
+  rules            String?            @db.Text
+  created_at       DateTime?          @db.Timestamp(0)
+  updated_at       DateTime?          @db.Timestamp(0)
+  eggs             eggs               @relation(fields: [egg_id], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "service_variables_egg_id_foreign")
+  server_variables server_variables[]
+
+  @@index([egg_id], map: "service_variables_egg_id_foreign")
+}
+
+model eggs {
+  id                                     Int             @id @default(autoincrement()) @db.UnsignedInt
+  uuid                                   String          @unique(map: "service_options_uuid_unique") @db.Char(36)
+  nest_id                                Int             @db.UnsignedInt
+  author                                 String
+  name                                   String
+  description                            String?         @db.Text
+  features                               String?         @db.LongText
+  docker_images                          String?         @db.LongText
+  file_denylist                          String?         @db.LongText
+  update_url                             String?         @db.Text
+  config_files                           String?         @db.Text
+  config_startup                         String?         @db.Text
+  config_logs                            String?         @db.Text
+  config_stop                            String?
+  config_from                            Int?            @db.UnsignedInt
+  startup                                String?         @db.Text
+  script_container                       String          @default("alpine:3.4")
+  copy_script_from                       Int?            @db.UnsignedInt
+  script_entry                           String          @default("ash")
+  script_is_privileged                   Boolean         @default(true)
+  script_install                         String?         @db.Text
+  created_at                             DateTime?       @db.Timestamp(0)
+  updated_at                             DateTime?       @db.Timestamp(0)
+  force_outgoing_ip                      Boolean         @default(false)
+  egg_mount                              egg_mount[]
+  egg_variables                          egg_variables[]
+  eggs_eggs_config_fromToeggs            eggs?           @relation("eggs_config_fromToeggs", fields: [config_from], references: [id], onUpdate: Restrict, map: "eggs_config_from_foreign")
+  other_eggs_eggs_config_fromToeggs      eggs[]          @relation("eggs_config_fromToeggs")
+  eggs_eggs_copy_script_fromToeggs       eggs?           @relation("eggs_copy_script_fromToeggs", fields: [copy_script_from], references: [id], onUpdate: Restrict, map: "eggs_copy_script_from_foreign")
+  other_eggs_eggs_copy_script_fromToeggs eggs[]          @relation("eggs_copy_script_fromToeggs")
+  nests                                  nests           @relation(fields: [nest_id], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "service_options_nest_id_foreign")
+  servers                                servers[]
+
+  @@index([config_from], map: "eggs_config_from_foreign")
+  @@index([copy_script_from], map: "eggs_copy_script_from_foreign")
+  @@index([nest_id], map: "service_options_nest_id_foreign")
+}
+
+model failed_jobs {
+  id         Int      @id @default(autoincrement()) @db.UnsignedInt
+  uuid       String?  @unique(map: "failed_jobs_uuid_unique")
+  connection String   @db.Text
+  queue      String   @db.Text
+  payload    String   @db.LongText
+  failed_at  DateTime @db.Timestamp(0)
+  exception  String   @db.Text
+}
+
+model jobs {
+  id           BigInt @id @default(autoincrement()) @db.UnsignedBigInt
+  queue        String
+  payload      String @db.LongText
+  attempts     Int    @db.UnsignedTinyInt
+  reserved_at  Int?   @db.UnsignedInt
+  available_at Int    @db.UnsignedInt
+  created_at   Int    @db.UnsignedInt
+
+  @@index([queue, reserved_at], map: "jobs_queue_reserved_at_index")
+}
+
+model locations {
+  id         Int       @id @default(autoincrement()) @db.UnsignedInt
+  short      String    @unique(map: "locations_short_unique")
+  long       String?   @db.Text
+  created_at DateTime? @db.Timestamp(0)
+  updated_at DateTime? @db.Timestamp(0)
+  nodes      nodes[]
+}
+
+model migrations {
+  id        Int    @id @default(autoincrement()) @db.UnsignedInt
+  migration String
+  batch     Int
+}
+
+model mount_node {
+  node_id  Int    @db.UnsignedInt
+  mount_id Int    @db.UnsignedInt
+  mounts   mounts @relation(fields: [mount_id], references: [id], onDelete: Cascade, map: "mount_node_mount_id_foreign")
+  nodes    nodes  @relation(fields: [node_id], references: [id], onDelete: Cascade, map: "mount_node_node_id_foreign")
+
+  @@unique([node_id, mount_id], map: "mount_node_node_id_mount_id_unique")
+  @@index([mount_id], map: "mount_node_mount_id_foreign")
+}
+
+model mount_server {
+  server_id Int     @db.UnsignedInt
+  mount_id  Int     @db.UnsignedInt
+  mounts    mounts  @relation(fields: [mount_id], references: [id], onDelete: Cascade, map: "mount_server_mount_id_foreign")
+  servers   servers @relation(fields: [server_id], references: [id], onDelete: Cascade, map: "mount_server_server_id_foreign")
+
+  @@unique([server_id, mount_id], map: "mount_server_server_id_mount_id_unique")
+  @@index([mount_id], map: "mount_server_mount_id_foreign")
+}
+
+model mounts {
+  id             Int            @id @unique(map: "mounts_id_unique") @default(autoincrement()) @db.UnsignedInt
+  uuid           String         @unique(map: "mounts_uuid_unique") @db.Char(36)
+  name           String         @unique(map: "mounts_name_unique")
+  description    String?        @db.Text
+  source         String
+  target         String
+  read_only      Int            @db.UnsignedTinyInt
+  user_mountable Int            @db.UnsignedTinyInt
+  egg_mount      egg_mount[]
+  mount_node     mount_node[]
+  mount_server   mount_server[]
+}
+
+model nests {
+  id          Int       @id @default(autoincrement()) @db.UnsignedInt
+  uuid        String    @unique(map: "services_uuid_unique") @db.Char(36)
+  author      String    @db.Char(191)
+  name        String
+  description String?   @db.Text
+  created_at  DateTime? @db.Timestamp(0)
+  updated_at  DateTime? @db.Timestamp(0)
+  eggs        eggs[]
+  servers     servers[]
+}
+
+model nodes {
+  id                  Int              @id @default(autoincrement()) @db.UnsignedInt
+  uuid                String           @unique(map: "nodes_uuid_unique") @db.Char(36)
+  public              Int              @db.UnsignedSmallInt
+  name                String
+  description         String?          @db.Text
+  location_id         Int              @db.UnsignedInt
+  fqdn                String
+  scheme              String           @default("https")
+  behind_proxy        Boolean          @default(false)
+  maintenance_mode    Boolean          @default(false)
+  memory              Int              @db.UnsignedInt
+  memory_overallocate Int              @default(0)
+  disk                Int              @db.UnsignedInt
+  disk_overallocate   Int              @default(0)
+  upload_size         Int              @default(100) @db.UnsignedInt
+  daemon_token_id     String           @unique(map: "nodes_daemon_token_id_unique") @db.Char(16)
+  daemon_token        String           @db.Text
+  daemonListen        Int              @default(8080) @db.UnsignedSmallInt
+  daemonSFTP          Int              @default(2022) @db.UnsignedSmallInt
+  daemonBase          String           @default("/home/daemon-files")
+  created_at          DateTime?        @db.Timestamp(0)
+  updated_at          DateTime?        @db.Timestamp(0)
+  allocations         allocations[]
+  database_hosts      database_hosts[]
+  mount_node          mount_node[]
+  locations           locations        @relation(fields: [location_id], references: [id], onUpdate: Restrict, map: "nodes_location_id_foreign")
+  servers             servers[]
+
+  @@index([location_id], map: "nodes_location_id_foreign")
+}
+
+model notifications {
+  id              String    @id
+  type            String
+  notifiable_type String
+  notifiable_id   BigInt    @db.UnsignedBigInt
+  data            String    @db.Text
+  read_at         DateTime? @db.Timestamp(0)
+  created_at      DateTime? @db.Timestamp(0)
+  updated_at      DateTime? @db.Timestamp(0)
+
+  @@index([notifiable_type, notifiable_id], map: "notifications_notifiable_type_notifiable_id_index")
+}
+
+/// The underlying table does not contain a valid unique identifier and can therefore currently not be handled by Prisma Client.
+model password_resets {
+  email      String
+  token      String
+  created_at DateTime @db.Timestamp(0)
+
+  @@index([email], map: "password_resets_email_index")
+  @@index([token], map: "password_resets_token_index")
+  @@ignore
+}
+
+model recovery_tokens {
+  id         BigInt    @id @default(autoincrement()) @db.UnsignedBigInt
+  user_id    Int       @db.UnsignedInt
+  token      String
+  created_at DateTime? @db.Timestamp(0)
+  users      users     @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "recovery_tokens_user_id_foreign")
+
+  @@index([user_id], map: "recovery_tokens_user_id_foreign")
+}
+
+model schedules {
+  id                Int       @id @default(autoincrement()) @db.UnsignedInt
+  server_id         Int       @db.UnsignedInt
+  name              String
+  cron_day_of_week  String
+  cron_month        String
+  cron_day_of_month String
+  cron_hour         String
+  cron_minute       String
+  is_active         Boolean
+  is_processing     Boolean
+  only_when_online  Int       @default(0) @db.UnsignedTinyInt
+  last_run_at       DateTime? @db.Timestamp(0)
+  next_run_at       DateTime? @db.Timestamp(0)
+  created_at        DateTime? @db.Timestamp(0)
+  updated_at        DateTime? @db.Timestamp(0)
+  servers           servers   @relation(fields: [server_id], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "schedules_server_id_foreign")
+  tasks             tasks[]
+
+  @@index([server_id], map: "schedules_server_id_foreign")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model server_transfers {
+  id                         Int       @id @default(autoincrement()) @db.UnsignedInt
+  server_id                  Int       @db.UnsignedInt
+  successful                 Boolean?
+  old_node                   Int       @db.UnsignedInt
+  new_node                   Int       @db.UnsignedInt
+  old_allocation             Int       @db.UnsignedInt
+  new_allocation             Int       @db.UnsignedInt
+  old_additional_allocations String?   @db.LongText
+  new_additional_allocations String?   @db.LongText
+  archived                   Boolean   @default(false)
+  created_at                 DateTime? @db.Timestamp(0)
+  updated_at                 DateTime? @db.Timestamp(0)
+  servers                    servers   @relation(fields: [server_id], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "server_transfers_server_id_foreign")
+
+  @@index([server_id], map: "server_transfers_server_id_foreign")
+}
+
+model server_variables {
+  id             Int           @id @default(autoincrement()) @db.UnsignedInt
+  server_id      Int?          @db.UnsignedInt
+  variable_id    Int           @db.UnsignedInt
+  variable_value String        @db.Text
+  created_at     DateTime?     @db.Timestamp(0)
+  updated_at     DateTime?     @db.Timestamp(0)
+  servers        servers?      @relation(fields: [server_id], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "server_variables_server_id_foreign")
+  egg_variables  egg_variables @relation(fields: [variable_id], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "server_variables_variable_id_foreign")
+
+  @@index([server_id], map: "server_variables_server_id_foreign")
+  @@index([variable_id], map: "server_variables_variable_id_foreign")
+}
+
+model servers {
+  id                                             Int                @id @default(autoincrement()) @db.UnsignedInt
+  external_id                                    String?            @unique(map: "servers_external_id_unique")
+  uuid                                           String             @unique(map: "servers_uuid_unique") @db.Char(36)
+  uuidShort                                      String             @unique(map: "servers_uuidshort_unique") @db.Char(8)
+  node_id                                        Int                @db.UnsignedInt
+  name                                           String
+  description                                    String             @db.Text
+  status                                         String?
+  skip_scripts                                   Boolean            @default(false)
+  owner_id                                       Int                @db.UnsignedInt
+  memory                                         Int                @db.UnsignedInt
+  swap                                           Int
+  disk                                           Int                @db.UnsignedInt
+  io                                             Int                @db.UnsignedInt
+  cpu                                            Int                @db.UnsignedInt
+  threads                                        String?
+  oom_disabled                                   Int                @default(0) @db.UnsignedTinyInt
+  allocation_id                                  Int                @unique(map: "servers_allocation_id_unique") @db.UnsignedInt
+  nest_id                                        Int                @db.UnsignedInt
+  egg_id                                         Int                @db.UnsignedInt
+  startup                                        String             @db.Text
+  image                                          String
+  allocation_limit                               Int?               @db.UnsignedInt
+  database_limit                                 Int?               @default(0) @db.UnsignedInt
+  backup_limit                                   Int                @default(0) @db.UnsignedInt
+  created_at                                     DateTime?          @db.Timestamp(0)
+  updated_at                                     DateTime?          @db.Timestamp(0)
+  installed_at                                   DateTime?          @db.Timestamp(0)
+  allocations_allocations_server_idToservers     allocations[]      @relation("allocations_server_idToservers")
+  audit_logs                                     audit_logs[]
+  backups                                        backups[]
+  databases                                      databases[]
+  mount_server                                   mount_server[]
+  schedules                                      schedules[]
+  server_transfers                               server_transfers[]
+  server_variables                               server_variables[]
+  allocations_servers_allocation_idToallocations allocations        @relation("servers_allocation_idToallocations", fields: [allocation_id], references: [id], onUpdate: Restrict, map: "servers_allocation_id_foreign")
+  eggs                                           eggs               @relation(fields: [egg_id], references: [id], onUpdate: Restrict, map: "servers_egg_id_foreign")
+  nests                                          nests              @relation(fields: [nest_id], references: [id], onUpdate: Restrict, map: "servers_nest_id_foreign")
+  nodes                                          nodes              @relation(fields: [node_id], references: [id], onUpdate: Restrict, map: "servers_node_id_foreign")
+  users                                          users              @relation(fields: [owner_id], references: [id], onUpdate: Restrict, map: "servers_owner_id_foreign")
+  subusers                                       subusers[]
+
+  @@index([egg_id], map: "servers_egg_id_foreign")
+  @@index([nest_id], map: "servers_nest_id_foreign")
+  @@index([node_id], map: "servers_node_id_foreign")
+  @@index([owner_id], map: "servers_owner_id_foreign")
+}
+
+model sessions {
+  id            String  @unique(map: "sessions_id_unique")
+  user_id       Int?
+  ip_address    String? @db.VarChar(45)
+  user_agent    String? @db.Text
+  payload       String  @db.Text
+  last_activity Int
+}
+
+model settings {
+  id    Int    @id @default(autoincrement()) @db.UnsignedInt
+  key   String @unique(map: "settings_key_unique")
+  value String @db.Text
+}
+
+model subusers {
+  id          Int       @id @default(autoincrement()) @db.UnsignedInt
+  user_id     Int       @db.UnsignedInt
+  server_id   Int       @db.UnsignedInt
+  permissions String?   @db.LongText
+  created_at  DateTime? @db.Timestamp(0)
+  updated_at  DateTime? @db.Timestamp(0)
+  servers     servers   @relation(fields: [server_id], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "subusers_server_id_foreign")
+  users       users     @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "subusers_user_id_foreign")
+
+  @@index([server_id], map: "subusers_server_id_foreign")
+  @@index([user_id], map: "subusers_user_id_foreign")
+}
+
+model tasks {
+  id                  Int       @id @default(autoincrement()) @db.UnsignedInt
+  schedule_id         Int       @db.UnsignedInt
+  sequence_id         Int       @db.UnsignedInt
+  action              String
+  payload             String    @db.Text
+  time_offset         Int       @db.UnsignedInt
+  is_queued           Boolean
+  continue_on_failure Int       @default(0) @db.UnsignedTinyInt
+  created_at          DateTime? @db.Timestamp(0)
+  updated_at          DateTime? @db.Timestamp(0)
+  schedules           schedules @relation(fields: [schedule_id], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "tasks_schedule_id_foreign")
+
+  @@index([schedule_id, sequence_id], map: "tasks_schedule_id_sequence_id_index")
+}
+
+model tasks_log {
+  id         Int       @id @default(autoincrement()) @db.UnsignedInt
+  task_id    Int       @db.UnsignedInt
+  run_time   DateTime  @db.Timestamp(0)
+  run_status Int       @db.UnsignedInt
+  response   String    @db.Text
+  created_at DateTime? @db.Timestamp(0)
+  updated_at DateTime? @db.Timestamp(0)
+}
+
+model user_ssh_keys {
+  id          Int       @id @default(autoincrement()) @db.UnsignedInt
+  user_id     Int       @db.UnsignedInt
+  name        String
+  fingerprint String
+  public_key  String    @db.Text
+  created_at  DateTime? @db.Timestamp(0)
+  updated_at  DateTime? @db.Timestamp(0)
+  deleted_at  DateTime? @db.Timestamp(0)
+  users       users     @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "user_ssh_keys_user_id_foreign")
+
+  @@index([user_id], map: "user_ssh_keys_user_id_foreign")
+}
+
+model users {
+  id                    Int               @id @default(autoincrement()) @db.UnsignedInt
+  external_id           String?
+  uuid                  String            @unique(map: "users_uuid_unique") @db.Char(36)
+  username              String            @unique(map: "users_username_unique")
+  email                 String            @unique(map: "users_email_unique")
+  name_first            String?
+  name_last             String?
+  password              String            @db.Text
+  remember_token        String?
+  language              String            @default("en") @db.Char(5)
+  root_admin            Int               @default(0) @db.UnsignedTinyInt
+  use_totp              Int               @db.UnsignedTinyInt
+  totp_secret           String?           @db.Text
+  totp_authenticated_at DateTime?         @db.Timestamp(0)
+  gravatar              Boolean           @default(true)
+  created_at            DateTime?         @db.Timestamp(0)
+  updated_at            DateTime?         @db.Timestamp(0)
+  api_keys              api_keys[]
+  audit_logs            audit_logs[]
+  recovery_tokens       recovery_tokens[]
+  servers               servers[]
+  subusers              subusers[]
+  user_ssh_keys         user_ssh_keys[]
+
+  @@index([external_id], map: "users_external_id_index")
+}

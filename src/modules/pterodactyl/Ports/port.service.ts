@@ -185,14 +185,88 @@ export class PterodactylPortService {
     return data.attributes;
   }
 
+  private async setConsecutiveAllocations(
+    serverId: string,
+    apiKey: string,
+    maxAttempts: number = 15,
+  ): Promise<AllocationAttributes[]> {
+    const current = await this.listServerAllocations(serverId, apiKey);
+    const existingPrimary = current.find((a) => a.is_default);
+
+    if (existingPrimary) {
+      const alreadyConsecutive = current.some(
+        (a) => !a.is_default && a.port === existingPrimary.port + 1,
+      );
+      if (alreadyConsecutive) {
+        this.logger.debug(
+          `Server ${serverId} already has consecutive ports ${existingPrimary.port} and ${existingPrimary.port + 1}`,
+        );
+        return current;
+      }
+    }
+
+    // Remove all non-primary allocations to start clean
+    for (const alloc of current.filter((a) => !a.is_default)) {
+      await this.removeAllocation(serverId, alloc.id, apiKey);
+    }
+
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      const allocations = await this.listServerAllocations(serverId, apiKey);
+      const primaryAlloc = allocations.find((a) => a.is_default);
+
+      if (!primaryAlloc) {
+        throw new Error(`No primary allocation found on server ${serverId}`);
+      }
+
+      this.logger.debug(
+        `Attempt ${attempt}/${maxAttempts}: primary=${primaryAlloc.port}, looking for ${primaryAlloc.port + 1}`,
+      );
+
+      // The client API always auto-assigns from the pool — we cannot request a specific
+      // port. Auto-assign and check whether the pool happened to give us primary+1.
+      const assigned = await this.assignAllocation(serverId, apiKey);
+
+      if (assigned.port === primaryAlloc.port + 1) {
+        this.logger.log(
+          `Server ${serverId}: secured consecutive ports ${primaryAlloc.port} and ${assigned.port}`,
+        );
+        return await this.listServerAllocations(serverId, apiKey);
+      }
+
+      // Not the port we need — promote the new allocation to primary so the old
+      // primary becomes removable, then loop and try again from the new base.
+      this.logger.debug(
+        `Got port ${assigned.port} instead of ${primaryAlloc.port + 1}, rotating primary`,
+      );
+      await this.setPrimaryAllocation(serverId, apiKey, assigned.id);
+      await this.removeAllocation(serverId, primaryAlloc.id, apiKey);
+    }
+
+    throw new Error(
+      `Failed to secure consecutive ports for server ${serverId} after ${maxAttempts} attempts`,
+    );
+  }
+
   private async setAllocationCount(
     serverId: string,
     targetCount: number,
     apiKey: string,
+    requiresConsecutivePorts?: boolean,
   ): Promise<AllocationAttributes[]> {
     return this.tracer.startActiveSpan('setAllocationCount', async (span) => {
       span.setAttribute('server.ptId', serverId);
       span.setAttribute('allocation.targetCount', targetCount);
+      span.setAttribute(
+        'allocation.requiresConsecutive',
+        requiresConsecutivePorts ?? false,
+      );
+
+      if (requiresConsecutivePorts && targetCount >= 2) {
+        const result = await this.setConsecutiveAllocations(serverId, apiKey);
+        span.setAttribute('allocation.finalCount', result.length);
+        span.end();
+        return result;
+      }
 
       const currentAllocations = await this.listServerAllocations(
         serverId,
@@ -362,6 +436,7 @@ export class PterodactylPortService {
         string,
         {
           requiredAllocations: number;
+          requiresConsecutivePorts?: boolean;
           ports: ReadonlyArray<{
             envVar: string;
             notes: string;
@@ -393,6 +468,11 @@ export class PterodactylPortService {
             },
           ],
         },
+        valheim: {
+          requiredAllocations: 2,
+          requiresConsecutivePorts: true,
+          ports: [],
+        },
       };
 
       const gameConfig = GAME_PORT_CONFIG[gameSlug] ?? {
@@ -420,6 +500,7 @@ export class PterodactylPortService {
         ptServerId,
         gameConfig.requiredAllocations,
         apiKey,
+        gameConfig.requiresConsecutivePorts,
       );
 
       span.setAttribute('port.actualAllocations', allocations.length);

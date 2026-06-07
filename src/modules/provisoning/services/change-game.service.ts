@@ -15,6 +15,7 @@ import {
   HytaleConfig,
   MinecraftConfig,
   SatisfactoryConfig,
+  ValheimConfig,
 } from '../../pterodactyl/Environment/GameConfig';
 import type { GameConfigBase } from './order.service';
 
@@ -200,6 +201,11 @@ export class ChangeGameService {
       case 'factorio':
         envConfig = this.envService.factorio(
           gameConfig.gameSpecificConfig as FactorioConfig,
+        );
+        break;
+      case 'valheim':
+        envConfig = this.envService.valheim(
+          gameConfig.gameSpecificConfig as ValheimConfig,
         );
         break;
       default:

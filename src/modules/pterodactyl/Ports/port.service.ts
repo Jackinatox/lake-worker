@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { trace } from '@opentelemetry/api';
+import { PterodactylPrismaService } from 'src/core/pterodactyl-prisma.service';
 import { User } from 'src/generated/prisma/client';
 
 interface AllocationAttributes {
@@ -35,6 +36,8 @@ export class PterodactylPortService {
   private readonly logger = new Logger(PterodactylPortService.name);
   private readonly pterodactylUrl = process.env.PTERODACTYL_URL;
   private readonly pterodactylApiKey = process.env.PTERODACTYL_API_KEY;
+
+  constructor(private readonly ptPrisma: PterodactylPrismaService) {}
 
   private async listServerAllocations(
     serverId: string,
@@ -185,12 +188,65 @@ export class PterodactylPortService {
     return data.attributes;
   }
 
+  private async getServerAllocationsFromDb(
+    serverId: string,
+  ): Promise<AllocationAttributes[] | null> {
+    const server = await this.ptPrisma.servers.findUnique({
+      where: { uuidShort: serverId },
+      select: {
+        allocation_id: true,
+        allocations_allocations_server_idToservers: {
+          select: {
+            id: true,
+            ip: true,
+            ip_alias: true,
+            port: true,
+            notes: true,
+          },
+        },
+      },
+    });
+
+    if (!server) return null;
+
+    return server.allocations_allocations_server_idToservers.map((a) => ({
+      ...a,
+      is_default: a.id === server.allocation_id,
+    }));
+  }
+
+  private async findConsecutiveFreeBasePorts(
+    nodeId: number,
+    ip: string,
+  ): Promise<number[]> {
+    const free = await this.ptPrisma.allocations.findMany({
+      where: { node_id: nodeId, server_id: null, ip },
+      select: { port: true },
+      orderBy: { port: 'asc' },
+    });
+
+    const ports = free.map((a) => a.port);
+    const bases: number[] = [];
+    for (let i = 0; i < ports.length - 1; i++) {
+      if (ports[i + 1] === ports[i] + 1) {
+        bases.push(ports[i]);
+      }
+    }
+    return bases;
+  }
+
   private async setConsecutiveAllocations(
     serverId: string,
     apiKey: string,
-    maxAttempts: number = 15,
+    maxAttempts: number = 10,
   ): Promise<AllocationAttributes[]> {
-    const current = await this.listServerAllocations(serverId, apiKey);
+    // Read current state from DB (no API call)
+    const current = await this.getServerAllocationsFromDb(serverId);
+
+    if (!current) {
+      throw new Error(`Server ${serverId} not found in panel database`);
+    }
+
     const existingPrimary = current.find((a) => a.is_default);
 
     if (existingPrimary) {
@@ -205,41 +261,95 @@ export class PterodactylPortService {
       }
     }
 
-    // Remove all non-primary allocations to start clean
+    // Remove all non-primary allocations to start clean (API writes only)
     for (const alloc of current.filter((a) => !a.is_default)) {
       await this.removeAllocation(serverId, alloc.id, apiKey);
     }
 
-    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-      const allocations = await this.listServerAllocations(serverId, apiKey);
-      const primaryAlloc = allocations.find((a) => a.is_default);
+    // Query the panel DB for the server's node and all free consecutive pairs
+    const serverInfo = await this.ptPrisma.servers.findUnique({
+      where: { uuidShort: serverId },
+      select: {
+        node_id: true,
+        allocations_servers_allocation_idToallocations: {
+          select: { id: true, ip: true, port: true },
+        },
+      },
+    });
 
-      if (!primaryAlloc) {
+    if (!serverInfo?.allocations_servers_allocation_idToallocations) {
+      throw new Error(`Could not resolve node for server ${serverId}`);
+    }
+
+    const { node_id: nodeId } = serverInfo;
+    const primaryAlloc =
+      serverInfo.allocations_servers_allocation_idToallocations;
+
+    const freeBases = await this.findConsecutiveFreeBasePorts(
+      nodeId,
+      primaryAlloc.ip,
+    );
+
+    if (freeBases.length === 0) {
+      throw new Error(
+        `Node has no consecutive free port pairs available for server ${serverId}`,
+      );
+    }
+
+    this.logger.debug(
+      `Server ${serverId}: node ${nodeId} has ${freeBases.length} consecutive free pair(s). Current primary=${primaryAlloc.port}`,
+    );
+
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      // Re-read primary from DB (zero API calls for reads)
+      const state = await this.getServerAllocationsFromDb(serverId);
+      const primary = state?.find((a) => a.is_default);
+
+      if (!primary) {
         throw new Error(`No primary allocation found on server ${serverId}`);
       }
 
+      // Check from DB whether primary+1 is currently free — if not, skip the API call
+      const nextPortFreeCount = await this.ptPrisma.allocations.count({
+        where: {
+          node_id: nodeId,
+          ip: primary.ip,
+          port: primary.port + 1,
+          server_id: null,
+        },
+      });
+
+      if (nextPortFreeCount === 0) {
+        this.logger.debug(
+          `Attempt ${attempt}: port ${primary.port + 1} is taken, rotating primary`,
+        );
+        // Rotate without wasting an assign-then-remove cycle
+        const newAlloc = await this.assignAllocation(serverId, apiKey);
+        await this.setPrimaryAllocation(serverId, apiKey, newAlloc.id);
+        await this.removeAllocation(serverId, primary.id, apiKey);
+        continue;
+      }
+
       this.logger.debug(
-        `Attempt ${attempt}/${maxAttempts}: primary=${primaryAlloc.port}, looking for ${primaryAlloc.port + 1}`,
+        `Attempt ${attempt}: primary=${primary.port}, port ${primary.port + 1} is free — assigning`,
       );
 
-      // The client API always auto-assigns from the pool — we cannot request a specific
-      // port. Auto-assign and check whether the pool happened to give us primary+1.
       const assigned = await this.assignAllocation(serverId, apiKey);
 
-      if (assigned.port === primaryAlloc.port + 1) {
+      if (assigned.port === primary.port + 1) {
         this.logger.log(
-          `Server ${serverId}: secured consecutive ports ${primaryAlloc.port} and ${assigned.port}`,
+          `Server ${serverId}: secured consecutive ports ${primary.port} and ${assigned.port}`,
         );
         return await this.listServerAllocations(serverId, apiKey);
       }
 
-      // Not the port we need — promote the new allocation to primary so the old
-      // primary becomes removable, then loop and try again from the new base.
+      // Pool gave us a different port despite DB saying primary+1 was free
+      // (race condition with another server). Rotate and retry.
       this.logger.debug(
-        `Got port ${assigned.port} instead of ${primaryAlloc.port + 1}, rotating primary`,
+        `Got port ${assigned.port} instead of ${primary.port + 1} (race condition), rotating`,
       );
       await this.setPrimaryAllocation(serverId, apiKey, assigned.id);
-      await this.removeAllocation(serverId, primaryAlloc.id, apiKey);
+      await this.removeAllocation(serverId, primary.id, apiKey);
     }
 
     throw new Error(
@@ -438,7 +548,7 @@ export class PterodactylPortService {
           requiredAllocations: number;
           requiresConsecutivePorts?: boolean;
           ports: ReadonlyArray<{
-            envVar: string;
+            envVar?: string;
             notes: string;
             isSecondary: boolean;
           }>;
@@ -471,7 +581,12 @@ export class PterodactylPortService {
         valheim: {
           requiredAllocations: 2,
           requiresConsecutivePorts: true,
-          ports: [],
+          ports: [
+            {
+              notes: 'Reliable Valheim port',
+              isSecondary: true,
+            },
+          ],
         },
       };
 
@@ -536,14 +651,18 @@ export class PterodactylPortService {
               portConfig.notes,
             );
 
-            await this.updateServerEnvironmentVariable(
-              ptServerId,
-              portConfig.envVar,
-              allocation.port,
-              apiKey,
-            );
+            if (portConfig.envVar) {
+              await this.updateServerEnvironmentVariable(
+                ptServerId,
+                portConfig.envVar,
+                allocation.port,
+                apiKey,
+              );
 
-            portsConfigured.push(`${portConfig.envVar}=${allocation.port}`);
+              portsConfigured.push(`${portConfig.envVar}=${allocation.port}`);
+            } else {
+              portsConfigured.push(`${portConfig.notes}=${allocation.port}`);
+            }
           }
         }
       }

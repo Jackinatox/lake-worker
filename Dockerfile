@@ -9,7 +9,8 @@ COPY package*.json bun.lock ./
 RUN bun install --no-save --frozen-lockfile
 
 COPY . .
-RUN bun prisma generate
+RUN bun prisma generate --config ./prisma.config.ts
+RUN bun prisma generate --config ./prisma-pterodactyl/prisma.config.ts
 
 # Build the NestJS application
 RUN bun run build

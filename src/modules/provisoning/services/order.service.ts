@@ -5,6 +5,7 @@ import {
   FactorioConfig,
   HytaleConfig,
   MinecraftConfig,
+  ModpackConfig,
   SatisfactoryConfig,
   ValheimConfig,
 } from 'src/modules/pterodactyl/Environment/GameConfig';
@@ -35,6 +36,12 @@ export interface GameConfigBase {
     | FactorioConfig
     | HytaleConfig
     | ValheimConfig;
+  /**
+   * Present only when the user picked a modpack (Minecraft). When set, the
+   * Minecraft branch provisions via the platform's installer egg instead of a
+   * flavor egg. `eggId`/`dockerImage` are already resolved by `lake`.
+   */
+  modpack?: ModpackConfig;
 }
 
 const ORDER_TYPE_TO_SERVER_TYPE: Record<OrderType, GameServerType> = {

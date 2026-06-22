@@ -200,6 +200,13 @@ export class PterodactylService {
   ): EnvironmentConfig {
     switch (gameSlug) {
       case 'minecraft': {
+        // Modpack path: lake already resolved eggId/dockerImage to the Modrinth
+        // installer egg; we only set its PROJECT_ID/VERSION_ID + own startup.
+        if (gameConfig.modpack) {
+          return this.envService.modrinth(
+            gameConfig.modpack,
+          ) as EnvironmentConfig;
+        }
         const mcConfig = gameConfig.gameSpecificConfig as MinecraftConfig;
         return this.envService.minecraft(
           mcConfig.flavor,

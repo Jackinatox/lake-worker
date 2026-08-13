@@ -293,8 +293,8 @@ enum TicketStatus {
 model SupportTicket {
   id       Int            @id @default(autoincrement())
   ticketId String         @unique @default(cuid())
-  userId   String
-  user     User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId   String?
+  user     User?          @relation(fields: [userId], references: [id], onDelete: SetNull)
   title    String?
   message  String
   category TicketCategory @default(GENERAL)
@@ -305,6 +305,27 @@ model SupportTicket {
 
   @@index([userId])
   @@index([ticketId])
+}
+
+enum FeedbackType {
+  MODPACK_BETA
+  GENERAL
+}
+
+model Feedback {
+  id           Int          @id @default(autoincrement())
+  type         FeedbackType
+  title        String?
+  message      String?      @db.Text
+  data         Json         @default("{}")
+  userId       String?
+  user         User?        @relation(fields: [userId], references: [id], onDelete: SetNull)
+  gameServerId String?
+  createdAt    DateTime     @default(now())
+
+  @@index([userId])
+  @@index([type])
+  @@index([gameServerId])
 }
 
 model Verification {
@@ -333,6 +354,7 @@ model User {
   accounts        Account[]
   GameServerOrder GameServerOrder[]
   SupportTicket   SupportTicket[]
+  Feedback        Feedback[]
   GameServer      GameServer[]
   WorkerLogs      WorkerLog[]
 
@@ -463,7 +485,7 @@ model WorkerLog {
   gameServer   GameServer? @relation(fields: [gameServerId], references: [id], onDelete: SetNull)
 
   userId String?
-  user   User?   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user   User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
 
   // Relation to JobRun
   jobRunId     String?
@@ -505,7 +527,7 @@ model ApplicationLog {
 
   // User context (optional)
   userId String?
-  user   User?   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user   User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
 
   gameServerId String?
   gameServer   GameServer? @relation(fields: [gameServerId], references: [id], onDelete: SetNull)

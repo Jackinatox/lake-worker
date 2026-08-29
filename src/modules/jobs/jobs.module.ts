@@ -12,6 +12,7 @@ import { DeleteServersService } from './services/delete-servers.service';
 import { SendEmailsService } from './services/send-emails.service';
 import { GenerateExpiryEmailsService } from './services/generate-expiry-emails.service';
 import { GenerateDeletionEmailsService } from './services/generate-deletion-emails.service';
+import { ProcessSuspensionsService } from './services/process-suspensions.service';
 
 // Schedulers
 import { JobScheduler } from './schedulers/job.scheduler';
@@ -35,6 +36,7 @@ import { JobsController } from './controllers/jobs.controller';
     SendEmailsService,
     GenerateExpiryEmailsService,
     GenerateDeletionEmailsService,
+    ProcessSuspensionsService,
 
     // Schedulers
     JobScheduler,

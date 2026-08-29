@@ -9,6 +9,7 @@ import { JobRunService } from '../services/job-run.service';
 import { EmailTransportService } from './emailTransport.service';
 import { EmailTemplateService } from '../services/email-template.service';
 import { ConfigCacheService } from 'src/core/config-cache.service';
+import { notSuspendedWhere } from 'src/lib/gameserver/suspension';
 
 @Injectable()
 export class GenerateDeletionEmailsService {
@@ -51,6 +52,8 @@ export class GenerateDeletionEmailsService {
           expires: { lte: expiryThreshold1DayMax, gte: expiryThreshold1DayMin },
           status: GameServerStatus.EXPIRED,
           Email: { none: { type: EmailType.GAME_SERVER_DELETION_1_DAY } },
+          // A suspended server is not the user's to renew, so do not nag them about it.
+          ...notSuspendedWhere(now),
         },
         include: { user: true },
         orderBy: { expires: 'asc' },
@@ -94,6 +97,7 @@ export class GenerateDeletionEmailsService {
           expires: { lte: expiryThreshold7DayMax, gte: expiryThreshold7DayMin },
           status: GameServerStatus.EXPIRED,
           Email: { none: { type: EmailType.GAME_SERVER_DELETION_7_DAYS } },
+          ...notSuspendedWhere(now),
         },
         include: { user: true },
         orderBy: { expires: 'asc' },

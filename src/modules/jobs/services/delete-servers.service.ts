@@ -5,6 +5,7 @@ import { GameServerStatus, WorkerJobType } from 'src/generated/prisma/client';
 import { JobRunService, JobContext } from '../services/job-run.service';
 import { DEFAULT_BATCH_SIZE } from 'src/lib/GlobalConsstants';
 import { ConfigCacheService } from 'src/core/config-cache.service';
+import { notSuspendedWhere } from 'src/lib/gameserver/suspension';
 
 @Injectable()
 export class DeleteServersService {
@@ -41,6 +42,8 @@ export class DeleteServersService {
       where: {
         expires: { lte: deletionThreshold },
         status: GameServerStatus.EXPIRED,
+        // Suspended servers belong to ProcessSuspensions until their suspension ends.
+        ...notSuspendedWhere(now),
       },
     });
 
@@ -59,6 +62,7 @@ export class DeleteServersService {
           where: {
             expires: { lte: deletionThreshold },
             status: GameServerStatus.EXPIRED,
+            ...notSuspendedWhere(now),
           },
           take: DEFAULT_BATCH_SIZE,
           orderBy: { expires: 'asc' },

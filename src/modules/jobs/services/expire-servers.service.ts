@@ -5,6 +5,7 @@ import { JobRunService, JobContext } from '../services/job-run.service';
 import { WorkerJobType } from 'src/generated/prisma/client';
 import { DEFAULT_BATCH_SIZE } from 'src/lib/GlobalConsstants';
 import { ConfigService } from '@nestjs/config';
+import { notSuspendedWhere } from 'src/lib/gameserver/suspension';
 
 @Injectable()
 export class ExpireServersService {
@@ -37,6 +38,8 @@ export class ExpireServersService {
             GameServerStatus.CREATION_FAILED,
           ],
         },
+        // Suspended servers belong to ProcessSuspensions until their suspension ends.
+        ...notSuspendedWhere(now),
       },
     });
 
@@ -60,6 +63,7 @@ export class ExpireServersService {
               GameServerStatus.CREATION_FAILED,
             ],
           },
+          ...notSuspendedWhere(now),
         },
         take: DEFAULT_BATCH_SIZE,
         orderBy: { expires: 'asc' },

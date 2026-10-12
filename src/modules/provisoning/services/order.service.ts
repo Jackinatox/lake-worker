@@ -30,6 +30,7 @@ export interface GameConfigBase {
   eggId: number;
   version: string;
   dockerImage: string;
+  disableOomKiller: boolean;
   gameSpecificConfig:
     | SatisfactoryConfig
     | MinecraftConfig
@@ -42,6 +43,7 @@ export interface GameConfigBase {
    * flavor egg. `eggId`/`dockerImage` are already resolved by `lake`.
    */
   modpack?: ModpackConfig;
+  /** Disables the container OOM killer (Pterodactyl `oom_disabled`). Defaults to false. */
 }
 
 const ORDER_TYPE_TO_SERVER_TYPE: Record<OrderType, GameServerType> = {
@@ -103,7 +105,7 @@ export class OrderService {
     const dbServer = await this.prisma.gameServer.create({
       data: {
         status: 'CREATED',
-        backupCount: 0, // Will be updated after PT server creation
+        backupCount: order.backupCount, // Will be updated after PT server creation
         cpuPercent: order.cpuPercent,
         diskMB: order.diskMB,
         price: order.price,

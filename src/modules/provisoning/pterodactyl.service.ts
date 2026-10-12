@@ -191,6 +191,7 @@ export class PterodactylService {
       .setLocation(order.creationLocation.ptLocationId)
       .setEnvironment(environmentConfig)
       .setStartWhenInstalled(false)
+      .setOomKillerDisabled(gameConfig.disableOomKiller ?? false)
       .build();
   }
 

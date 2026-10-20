@@ -10,6 +10,10 @@ import { EmailTransportService } from './emailTransport.service';
 import { EmailTemplateService } from '../services/email-template.service';
 import { ConfigCacheService } from 'src/core/config-cache.service';
 import { notSuspendedWhere } from 'src/lib/gameserver/suspension';
+import {
+  reminderSentForCycle,
+  remindersOfType,
+} from 'src/lib/gameserver/reminder-cycle';
 
 @Injectable()
 export class GenerateDeletionEmailsService {
@@ -51,11 +55,14 @@ export class GenerateDeletionEmailsService {
         where: {
           expires: { lte: expiryThreshold1DayMax, gte: expiryThreshold1DayMin },
           status: GameServerStatus.EXPIRED,
-          Email: { none: { type: EmailType.GAME_SERVER_DELETION_1_DAY } },
           // A suspended server is not the user's to renew, so do not nag them about it.
           ...notSuspendedWhere(now),
         },
-        include: { user: true },
+        include: {
+          user: true,
+          // Filtered per cycle below, see reminder-cycle.ts
+          Email: remindersOfType(EmailType.GAME_SERVER_DELETION_1_DAY),
+        },
         orderBy: { expires: 'asc' },
       });
 
@@ -63,6 +70,7 @@ export class GenerateDeletionEmailsService {
         try {
           const deletionDate = new Date(server.expires);
           deletionDate.setDate(deletionDate.getDate() + deletionThresholdDays);
+          if (reminderSentForCycle(server.Email, deletionDate)) continue;
           await this.createDeletionEmail(server, 1, deletionDate);
           processed++;
         } catch (error) {
@@ -96,10 +104,13 @@ export class GenerateDeletionEmailsService {
         where: {
           expires: { lte: expiryThreshold7DayMax, gte: expiryThreshold7DayMin },
           status: GameServerStatus.EXPIRED,
-          Email: { none: { type: EmailType.GAME_SERVER_DELETION_7_DAYS } },
           ...notSuspendedWhere(now),
         },
-        include: { user: true },
+        include: {
+          user: true,
+          // Filtered per cycle below, see reminder-cycle.ts
+          Email: remindersOfType(EmailType.GAME_SERVER_DELETION_7_DAYS),
+        },
         orderBy: { expires: 'asc' },
       });
 
@@ -107,6 +118,7 @@ export class GenerateDeletionEmailsService {
         try {
           const deletionDate = new Date(server.expires);
           deletionDate.setDate(deletionDate.getDate() + deletionThresholdDays);
+          if (reminderSentForCycle(server.Email, deletionDate)) continue;
           await this.createDeletionEmail(server, 7, deletionDate);
           processed++;
         } catch (error) {

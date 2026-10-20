@@ -10,6 +10,10 @@ import { EmailTransportService } from './emailTransport.service';
 import { EmailTemplateService } from '../services/email-template.service';
 import { ConfigCacheService } from 'src/core/config-cache.service';
 import { notSuspendedWhere } from 'src/lib/gameserver/suspension';
+import {
+  reminderSentForCycle,
+  remindersOfType,
+} from 'src/lib/gameserver/reminder-cycle';
 
 @Injectable()
 export class GenerateExpiryEmailsService {
@@ -48,15 +52,19 @@ export class GenerateExpiryEmailsService {
               GameServerStatus.CREATION_FAILED,
             ],
           },
-          Email: { none: { type: EmailType.GAME_SERVER_EXPIRING_1_DAY } },
           // A suspended server is not the user's to renew, so do not nag them about it.
           ...notSuspendedWhere(now),
         },
-        include: { user: true },
+        include: {
+          user: true,
+          // Filtered per cycle below, see reminder-cycle.ts
+          Email: remindersOfType(EmailType.GAME_SERVER_EXPIRING_1_DAY),
+        },
         orderBy: { expires: 'asc' },
       });
 
       for (const server of expiring1day) {
+        if (reminderSentForCycle(server.Email, server.expires)) continue;
         try {
           await this.createExpiryEmail(server, 1);
           processed++;
@@ -89,14 +97,18 @@ export class GenerateExpiryEmailsService {
               GameServerStatus.CREATION_FAILED,
             ],
           },
-          Email: { none: { type: EmailType.GAME_SERVER_EXPIRING_7_DAYS } },
           ...notSuspendedWhere(now),
         },
-        include: { user: true },
+        include: {
+          user: true,
+          // Filtered per cycle below, see reminder-cycle.ts
+          Email: remindersOfType(EmailType.GAME_SERVER_EXPIRING_7_DAYS),
+        },
         orderBy: { expires: 'asc' },
       });
 
       for (const server of expiring7days) {
+        if (reminderSentForCycle(server.Email, server.expires)) continue;
         try {
           await this.createExpiryEmail(server, 7);
           processed++;

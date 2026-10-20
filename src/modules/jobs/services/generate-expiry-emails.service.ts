@@ -42,29 +42,30 @@ export class GenerateExpiryEmailsService {
     try {
       // Process 1-day expiry reminders
       const twoDaysFromNow = new Date(now.getTime() + 2 * 24 * 60 * 60 * 1000);
-      const expiring1day = await this.prisma.gameServer.findMany({
-        where: {
-          expires: { lte: twoDaysFromNow, gt: now },
-          status: {
-            notIn: [
-              GameServerStatus.EXPIRED,
-              GameServerStatus.DELETED,
-              GameServerStatus.CREATION_FAILED,
-            ],
+      const expiring1day = (
+        await this.prisma.gameServer.findMany({
+          where: {
+            expires: { lte: twoDaysFromNow, gt: now },
+            status: {
+              notIn: [
+                GameServerStatus.EXPIRED,
+                GameServerStatus.DELETED,
+                GameServerStatus.CREATION_FAILED,
+              ],
+            },
+            // A suspended server is not the user's to renew, so do not nag them about it.
+            ...notSuspendedWhere(now),
           },
-          // A suspended server is not the user's to renew, so do not nag them about it.
-          ...notSuspendedWhere(now),
-        },
-        include: {
-          user: true,
-          // Filtered per cycle below, see reminder-cycle.ts
-          Email: remindersOfType(EmailType.GAME_SERVER_EXPIRING_1_DAY),
-        },
-        orderBy: { expires: 'asc' },
-      });
+          include: {
+            user: true,
+            // Filtered per cycle right after the query, see reminder-cycle.ts
+            Email: remindersOfType(EmailType.GAME_SERVER_EXPIRING_1_DAY),
+          },
+          orderBy: { expires: 'asc' },
+        })
+      ).filter((server) => !reminderSentForCycle(server.Email, server.expires));
 
       for (const server of expiring1day) {
-        if (reminderSentForCycle(server.Email, server.expires)) continue;
         try {
           await this.createExpiryEmail(server, 1);
           processed++;
@@ -87,28 +88,29 @@ export class GenerateExpiryEmailsService {
       const eightDaysFromNow = new Date(
         now.getTime() + 8 * 24 * 60 * 60 * 1000,
       );
-      const expiring7days = await this.prisma.gameServer.findMany({
-        where: {
-          expires: { lte: eightDaysFromNow, gte: sixDaysFromNow },
-          status: {
-            notIn: [
-              GameServerStatus.EXPIRED,
-              GameServerStatus.DELETED,
-              GameServerStatus.CREATION_FAILED,
-            ],
+      const expiring7days = (
+        await this.prisma.gameServer.findMany({
+          where: {
+            expires: { lte: eightDaysFromNow, gte: sixDaysFromNow },
+            status: {
+              notIn: [
+                GameServerStatus.EXPIRED,
+                GameServerStatus.DELETED,
+                GameServerStatus.CREATION_FAILED,
+              ],
+            },
+            ...notSuspendedWhere(now),
           },
-          ...notSuspendedWhere(now),
-        },
-        include: {
-          user: true,
-          // Filtered per cycle below, see reminder-cycle.ts
-          Email: remindersOfType(EmailType.GAME_SERVER_EXPIRING_7_DAYS),
-        },
-        orderBy: { expires: 'asc' },
-      });
+          include: {
+            user: true,
+            // Filtered per cycle right after the query, see reminder-cycle.ts
+            Email: remindersOfType(EmailType.GAME_SERVER_EXPIRING_7_DAYS),
+          },
+          orderBy: { expires: 'asc' },
+        })
+      ).filter((server) => !reminderSentForCycle(server.Email, server.expires));
 
       for (const server of expiring7days) {
-        if (reminderSentForCycle(server.Email, server.expires)) continue;
         try {
           await this.createExpiryEmail(server, 7);
           processed++;

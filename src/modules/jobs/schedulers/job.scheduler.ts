@@ -6,6 +6,7 @@ import { DeleteServersService } from '../services/delete-servers.service';
 import { SendEmailsService } from '../services/send-emails.service';
 import { GenerateExpiryEmailsService } from '../services/generate-expiry-emails.service';
 import { GenerateDeletionEmailsService } from '../services/generate-deletion-emails.service';
+import { ProcessSuspensionsService } from '../services/process-suspensions.service';
 import { NotificationService } from '../services/notification.service';
 
 @Injectable()
@@ -19,6 +20,7 @@ export class JobScheduler {
     private readonly sendEmails: SendEmailsService,
     private readonly generateExpiryEmails: GenerateExpiryEmailsService,
     private readonly generateDeletionEmails: GenerateDeletionEmailsService,
+    private readonly processSuspensions: ProcessSuspensionsService,
     private readonly notifications: NotificationService,
   ) {}
 
@@ -89,6 +91,21 @@ export class JobScheduler {
       return {
         processed: result.processed,
         total: result.processed + result.failed,
+        failed: result.failed,
+      };
+    });
+  }
+
+  /**
+   * Close out expired suspensions (delete or release the server) - runs every 30 minutes
+   */
+  @Cron(CronExpression.EVERY_30_MINUTES)
+  async handleProcessSuspensions(): Promise<void> {
+    await this.runJob('ProcessSuspensions', async () => {
+      const result = await this.processSuspensions.run();
+      return {
+        processed: result.processed,
+        total: result.total,
         failed: result.failed,
       };
     });
@@ -175,6 +192,9 @@ export class JobScheduler {
       GenerateDeletionEmails: {
         isRunning: this.isRunning['GenerateDeletionEmails'] ?? false,
       },
+      ProcessSuspensions: {
+        isRunning: this.isRunning['ProcessSuspensions'] ?? false,
+      },
     };
   }
 
@@ -187,7 +207,8 @@ export class JobScheduler {
       | 'DeleteServers'
       | 'SendEmails'
       | 'GenerateExpiryEmails'
-      | 'GenerateDeletionEmails',
+      | 'GenerateDeletionEmails'
+      | 'ProcessSuspensions',
   ): Promise<{
     success: boolean;
     result?: { processed: number; total: number; failed: number };
@@ -224,6 +245,9 @@ export class JobScheduler {
           };
           break;
         }
+        case 'ProcessSuspensions':
+          result = await this.processSuspensions.run();
+          break;
       }
 
       return { success: true, result };

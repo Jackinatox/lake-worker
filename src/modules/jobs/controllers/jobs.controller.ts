@@ -55,7 +55,8 @@ export class JobsController {
       | 'DeleteServers'
       | 'SendEmails'
       | 'GenerateExpiryEmails'
-      | 'GenerateDeletionEmails',
+      | 'GenerateDeletionEmails'
+      | 'ProcessSuspensions',
   ) {
     const result = await this.scheduler.triggerJob(jobName);
     return {

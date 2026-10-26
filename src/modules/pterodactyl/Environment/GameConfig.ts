@@ -30,6 +30,23 @@ export interface MinecraftConfig {
   flavor: string;
 }
 
+/**
+ * Modpack descriptor set by `lake` on `gameConfig.modpack`. Present only when the
+ * user picked a modpack; absent for flavor servers. `lake` has already resolved
+ * `gameConfig.eggId` (the platform's installer egg) and `gameConfig.dockerImage`,
+ * so the worker only needs the project/version to set the egg's variables.
+ */
+export interface ModpackConfig {
+  /** Only 'modrinth' today; 'curseforge' added later as a second branch. */
+  platform: 'modrinth';
+  /** Modrinth project id (e.g. '1KVo5zza'). */
+  projectId: string;
+  /** Modrinth version id (e.g. 'g5RAIwpP'); 'latest' resolves to newest. */
+  versionId: string;
+  /** Display name, for logs/labels only. */
+  name: string;
+}
+
 export type FactorioVersion = 'latest' | 'experimental' | 'custom';
 
 export type FactorioDLC = 'elevated-rails' | 'quality' | 'space-age';

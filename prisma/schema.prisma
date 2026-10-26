@@ -56,6 +56,7 @@ model Location {
 model CPU {
   id           Int    @id @default(autoincrement())
   name         String
+  shortName    String @default("default short name")
   cores        Int?
   threads      Int?
   maxThreads   Int
@@ -116,8 +117,46 @@ model GameServer {
   Email Email[]
 
   ApplicationLog ApplicationLog[]
+  suspensions    GameServerSuspension[]
+  feedbacks      Feedback[]
+  tickets        Ticket[]
 
   @@index([resourceTierId])
+}
+
+// A suspension is orthogonal to GameServerStatus: a server can be suspended while it is
+// ACTIVE *or* while it is EXPIRED. Keeping it in its own table means lifting a suspension
+// never has to guess which lifecycle status to restore.
+// A server counts as suspended while a row has `liftedAt = null AND expiresAt > now()`.
+model GameServerSuspension {
+  id String @id @default(cuid())
+
+  gameServerId String
+  gameServer   GameServer @relation(fields: [gameServerId], references: [id], onDelete: Cascade)
+
+  type   SuspensionType @default(QUARANTINE)
+  reason String         @db.Text // shown verbatim to the user in the email and on the dashboard
+
+  expiresAt         DateTime // the suspension runs until here
+  deleteAfterExpiry Boolean  @default(true) // true: the worker deletes the server at expiry, false: it lifts the suspension
+
+  liftedAt       DateTime? // set when an admin unsuspends early, or when the worker processes the expiry
+  liftedByUserId String?
+  liftedByUser   User?     @relation("SuspensionLiftedBy", fields: [liftedByUserId], references: [id], onDelete: SetNull)
+
+  createdByUserId String?
+  createdByUser   User?   @relation("SuspensionCreatedBy", fields: [createdByUserId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // worker scan
+  @@index([gameServerId, liftedAt])
+  @@index([expiresAt])
+}
+
+enum SuspensionType {
+  QUARANTINE
 }
 
 enum GameServerType {
@@ -281,6 +320,7 @@ enum TicketCategory {
   TECHNICAL
   BILLING
   ACCOUNT
+  SUSPENSION // appeals against a suspended gameserver
 }
 
 enum TicketStatus {
@@ -293,8 +333,8 @@ enum TicketStatus {
 model SupportTicket {
   id       Int            @id @default(autoincrement())
   ticketId String         @unique @default(cuid())
-  userId   String
-  user     User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId   String?
+  user     User?          @relation(fields: [userId], references: [id], onDelete: SetNull)
   title    String?
   message  String
   category TicketCategory @default(GENERAL)
@@ -305,6 +345,151 @@ model SupportTicket {
 
   @@index([userId])
   @@index([ticketId])
+}
+
+// Conversation-based ticket system. It coexists with the legacy `SupportTicket` until the links
+// are switched over and reuses `TicketCategory`; see docs/support-tickets.md.
+enum TicketState {
+  OPEN // waiting for a staff reply
+  WAITING_FOR_CUSTOMER
+  ON_HOLD // waiting on something internal; the customer sees "in progress"
+  RESOLVED // the customer can still reopen it by replying; the worker closes it later
+  CLOSED // final, read-only
+}
+
+enum TicketPriority {
+  LOW
+  NORMAL
+  HIGH
+  URGENT
+}
+
+enum TicketAuthorRole {
+  CUSTOMER
+  STAFF
+  SYSTEM // automated messages, e.g. from the worker
+}
+
+enum TicketEventType {
+  CREATED
+  STATUS_CHANGED
+  PRIORITY_CHANGED
+  CATEGORY_CHANGED
+  SUBJECT_CHANGED
+  ASSIGNEE_CHANGED
+  SERVER_CHANGED
+}
+
+model Ticket {
+  id           String         @id @default(cuid()) // used in customer URLs
+  number       Int            @unique @default(autoincrement()) // shown as "#1042", used in admin URLs
+  userId       String?
+  user         User?          @relation("TicketCustomer", fields: [userId], references: [id], onDelete: SetNull)
+  subject      String
+  category     TicketCategory
+  status       TicketState    @default(OPEN)
+  priority     TicketPriority @default(NORMAL)
+  assigneeId   String?
+  assignee     User?          @relation("TicketAssignee", fields: [assigneeId], references: [id], onDelete: SetNull)
+  gameServerId String?
+  gameServer   GameServer?    @relation(fields: [gameServerId], references: [id], onDelete: SetNull)
+
+  statusChangedAt       DateTime  @default(now())
+  lastMessageAt         DateTime  @default(now())
+  lastCustomerMessageAt DateTime?
+  lastStaffMessageAt    DateTime? // STAFF and SYSTEM messages; drives the customer's unread marker
+  firstResponseAt       DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  messages   TicketMessage[]
+  notes      TicketNote[]
+  events     TicketEvent[]
+  readStates TicketReadState[]
+
+  @@index([status, lastMessageAt])
+  @@index([userId, lastMessageAt])
+  @@index([assigneeId, status])
+  @@index([gameServerId])
+}
+
+model TicketMessage {
+  id         Int              @id @default(autoincrement())
+  ticketId   String
+  ticket     Ticket           @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  authorId   String?
+  author     User?            @relation(fields: [authorId], references: [id], onDelete: SetNull)
+  authorRole TicketAuthorRole // snapshot, so a later role change does not rewrite history
+  body       String           @db.Text
+  createdAt  DateTime         @default(now())
+
+  @@index([ticketId, createdAt])
+}
+
+// Internal admin notes. A separate table (instead of a flag on TicketMessage) so customer
+// queries cannot leak them by forgetting a filter.
+model TicketNote {
+  id        Int      @id @default(autoincrement())
+  ticketId  String
+  ticket    Ticket   @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  authorId  String?
+  author    User?    @relation(fields: [authorId], references: [id], onDelete: SetNull)
+  body      String   @db.Text
+  pinned    Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([ticketId])
+}
+
+// Audit trail. `fromValue`/`toValue` are display snapshots (enum value, username, server name).
+// A null actor means the system (e.g. the worker auto-closing a ticket).
+model TicketEvent {
+  id        Int             @id @default(autoincrement())
+  ticketId  String
+  ticket    Ticket          @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  actorId   String?
+  actor     User?           @relation(fields: [actorId], references: [id], onDelete: SetNull)
+  type      TicketEventType
+  fromValue String?
+  toValue   String?
+  createdAt DateTime        @default(now())
+
+  @@index([ticketId, createdAt])
+}
+
+model TicketReadState {
+  ticketId   String
+  ticket     Ticket   @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  lastReadAt DateTime
+
+  @@id([ticketId, userId])
+  @@index([userId])
+}
+
+enum FeedbackType {
+  MODPACK_BETA
+  GENERAL
+}
+
+model Feedback {
+  id           Int          @id @default(autoincrement())
+  type         FeedbackType
+  title        String?
+  message      String?      @db.Text
+  data         Json         @default("{}")
+  userId       String?
+  user         User?        @relation(fields: [userId], references: [id], onDelete: SetNull)
+  gameServerId String?
+  gameServer   GameServer?  @relation(fields: [gameServerId], references: [id], onDelete: SetNull)
+  createdAt    DateTime     @default(now())
+
+  @@index([userId])
+  @@index([type])
+  @@index([gameServerId])
 }
 
 model Verification {
@@ -333,6 +518,7 @@ model User {
   accounts        Account[]
   GameServerOrder GameServerOrder[]
   SupportTicket   SupportTicket[]
+  Feedback        Feedback[]
   GameServer      GameServer[]
   WorkerLogs      WorkerLog[]
 
@@ -356,6 +542,16 @@ model User {
 
   username        String?
   displayUsername String?
+
+  suspensionsCreated GameServerSuspension[] @relation("SuspensionCreatedBy")
+  suspensionsLifted  GameServerSuspension[] @relation("SuspensionLiftedBy")
+
+  tickets          Ticket[]          @relation("TicketCustomer")
+  assignedTickets  Ticket[]          @relation("TicketAssignee")
+  ticketMessages   TicketMessage[]
+  ticketNotes      TicketNote[]
+  ticketEvents     TicketEvent[]
+  ticketReadStates TicketReadState[]
 
   @@unique([email])
   @@unique([ptUsername])
@@ -418,6 +614,7 @@ enum WorkerJobType {
   DELETE_SERVERS
   GENERATE_DELETION_EMAILS
   CHECK_NEW_VERSIONS
+  PROCESS_SUSPENSIONS // expired suspensions: delete the server or lift the suspension
 }
 
 enum JobRunStatus {
@@ -463,7 +660,7 @@ model WorkerLog {
   gameServer   GameServer? @relation(fields: [gameServerId], references: [id], onDelete: SetNull)
 
   userId String?
-  user   User?   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user   User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
 
   // Relation to JobRun
   jobRunId     String?
@@ -505,7 +702,7 @@ model ApplicationLog {
 
   // User context (optional)
   userId String?
-  user   User?   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user   User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
 
   gameServerId String?
   gameServer   GameServer? @relation(fields: [gameServerId], references: [id], onDelete: SetNull)
@@ -571,11 +768,14 @@ enum EmailType {
   TWO_FAKTOR_OPT_SEND
   SUPPORT_TICKET_CREATED
   SUPPORT_TICKET_RESPONSE
+  SUPPORT_TICKET_RESOLVED
   GAME_SERVER_EXPIRED
   GAME_SERVER_EXPIRING_7_DAYS
   GAME_SERVER_EXPIRING_1_DAY
   GAME_SERVER_DELETION_1_DAY
   GAME_SERVER_DELETION_7_DAYS
+  GAME_SERVER_SUSPENDED
+  GAME_SERVER_UNSUSPENDED
   SERVER_BOOKING_CONFIRMATION
   FREE_SERVER_CREATED
   INVOICE
@@ -664,6 +864,9 @@ model TwoFactor {
 
   verified Boolean? @default(true)
 
+  failedVerificationCount Int?      @default(0)
+  lockedUntil             DateTime?
+
   @@index([secret])
   @@index([userId])
   @@map("twoFactor")
@@ -747,9 +950,9 @@ model Apikey {
   lastRefillAt        DateTime?
   enabled             Boolean   @default(true)
   rateLimitEnabled    Boolean   @default(true)
-  rateLimitTimeWindow Int       @default(86400000)
-  rateLimitMax        Int       @default(10)
-  requestCount        Int       @default(0)
+  rateLimitTimeWindow Int?      @default(86400000)
+  rateLimitMax        Int?      @default(10)
+  requestCount        Int?      @default(0)
   remaining           Int?
   lastRequest         DateTime?
   expiresAt           DateTime?
@@ -776,6 +979,28 @@ model FAQ {
   enabled   Boolean @default(true)
 
   category String[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model ModpackCache {
+  id           Int    @id @default(autoincrement())
+  searchString String
+  provider     String
+
+  result Json
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model ModpackVersionCache {
+  id        Int    @id @default(autoincrement())
+  projectId String
+  provider  String
+
+  result Json
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

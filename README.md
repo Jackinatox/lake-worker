@@ -154,6 +154,7 @@ Manually triggers a scheduled job outside its normal schedule. Only one instance
 | `SendEmails`             | Dispatches queued outgoing emails                            |
 | `GenerateExpiryEmails`   | Generates expiry reminder emails for servers nearing expiry  |
 | `GenerateDeletionEmails` | Generates deletion warning emails for expired servers        |
+| `ProcessSuspensions`     | Closes expired suspensions — deletes or releases the server  |
 
 **Response:**
 

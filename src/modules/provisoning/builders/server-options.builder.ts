@@ -54,7 +54,8 @@ export class ServerOptionsBuilder {
     startup: '',
   };
   private startWhenInstalled: boolean = false;
-  private outOfMemoryKiller: boolean = false;
+  /** Maps to Pterodactyl's `oom_disabled` — true disables the OOM killer. */
+  private oomKillerDisabled: boolean = false;
 
   setName(name: string): this {
     this.name = name;
@@ -108,6 +109,11 @@ export class ServerOptionsBuilder {
     return this;
   }
 
+  setOomKillerDisabled(disabled: boolean): this {
+    this.oomKillerDisabled = disabled;
+    return this;
+  }
+
   build(): NewServerOptions {
     this.validate();
 
@@ -121,7 +127,7 @@ export class ServerOptionsBuilder {
       description: `${this.limits.cpu}% CPU, ${this.limits.memory}MB RAM, ${this.limits.disk}MB Disk`,
       deploy: this.deploy,
       startWhenInstalled: this.startWhenInstalled,
-      outOfMemoryKiller: this.outOfMemoryKiller,
+      outOfMemoryKiller: this.oomKillerDisabled,
       ...this.environmentConfig,
     } as NewServerOptions;
   }

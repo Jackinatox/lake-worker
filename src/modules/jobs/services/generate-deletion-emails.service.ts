@@ -9,6 +9,11 @@ import { JobRunService } from '../services/job-run.service';
 import { EmailTransportService } from './emailTransport.service';
 import { EmailTemplateService } from '../services/email-template.service';
 import { ConfigCacheService } from 'src/core/config-cache.service';
+import { notSuspendedWhere } from 'src/lib/gameserver/suspension';
+import {
+  reminderSentForCycle,
+  remindersOfType,
+} from 'src/lib/gameserver/reminder-cycle';
 
 @Injectable()
 export class GenerateDeletionEmailsService {
@@ -46,20 +51,38 @@ export class GenerateDeletionEmailsService {
         twoDaysFromNow.getTime() - deletionThresholdDays * 24 * 60 * 60 * 1000,
       );
 
-      const deleting1day = await this.prisma.gameServer.findMany({
-        where: {
-          expires: { lte: expiryThreshold1DayMax, gte: expiryThreshold1DayMin },
-          status: GameServerStatus.EXPIRED,
-          Email: { none: { type: EmailType.GAME_SERVER_DELETION_1_DAY } },
-        },
-        include: { user: true },
-        orderBy: { expires: 'asc' },
-      });
+      const deleting1day = (
+        await this.prisma.gameServer.findMany({
+          where: {
+            expires: {
+              lte: expiryThreshold1DayMax,
+              gte: expiryThreshold1DayMin,
+            },
+            status: GameServerStatus.EXPIRED,
+            // A suspended server is not the user's to renew, so do not nag them about it.
+            ...notSuspendedWhere(now),
+          },
+          include: {
+            user: true,
+            // Filtered per cycle right after the query, see reminder-cycle.ts
+            Email: remindersOfType(EmailType.GAME_SERVER_DELETION_1_DAY),
+          },
+          orderBy: { expires: 'asc' },
+        })
+      ).filter(
+        (server) =>
+          !reminderSentForCycle(
+            server.Email,
+            this.deletionDateFor(server.expires, deletionThresholdDays),
+          ),
+      );
 
       for (const server of deleting1day) {
         try {
-          const deletionDate = new Date(server.expires);
-          deletionDate.setDate(deletionDate.getDate() + deletionThresholdDays);
+          const deletionDate = this.deletionDateFor(
+            server.expires,
+            deletionThresholdDays,
+          );
           await this.createDeletionEmail(server, 1, deletionDate);
           processed++;
         } catch (error) {
@@ -89,20 +112,37 @@ export class GenerateDeletionEmailsService {
           deletionThresholdDays * 24 * 60 * 60 * 1000,
       );
 
-      const deleting7days = await this.prisma.gameServer.findMany({
-        where: {
-          expires: { lte: expiryThreshold7DayMax, gte: expiryThreshold7DayMin },
-          status: GameServerStatus.EXPIRED,
-          Email: { none: { type: EmailType.GAME_SERVER_DELETION_7_DAYS } },
-        },
-        include: { user: true },
-        orderBy: { expires: 'asc' },
-      });
+      const deleting7days = (
+        await this.prisma.gameServer.findMany({
+          where: {
+            expires: {
+              lte: expiryThreshold7DayMax,
+              gte: expiryThreshold7DayMin,
+            },
+            status: GameServerStatus.EXPIRED,
+            ...notSuspendedWhere(now),
+          },
+          include: {
+            user: true,
+            // Filtered per cycle right after the query, see reminder-cycle.ts
+            Email: remindersOfType(EmailType.GAME_SERVER_DELETION_7_DAYS),
+          },
+          orderBy: { expires: 'asc' },
+        })
+      ).filter(
+        (server) =>
+          !reminderSentForCycle(
+            server.Email,
+            this.deletionDateFor(server.expires, deletionThresholdDays),
+          ),
+      );
 
       for (const server of deleting7days) {
         try {
-          const deletionDate = new Date(server.expires);
-          deletionDate.setDate(deletionDate.getDate() + deletionThresholdDays);
+          const deletionDate = this.deletionDateFor(
+            server.expires,
+            deletionThresholdDays,
+          );
           await this.createDeletionEmail(server, 7, deletionDate);
           processed++;
         } catch (error) {
@@ -135,6 +175,13 @@ export class GenerateDeletionEmailsService {
       });
       throw error;
     }
+  }
+
+  /** The date the server is deleted on; also the cycle its deletion reminders belong to. */
+  private deletionDateFor(expires: Date, deletionThresholdDays: number): Date {
+    const deletionDate = new Date(expires);
+    deletionDate.setDate(deletionDate.getDate() + deletionThresholdDays);
+    return deletionDate;
   }
 
   private async createDeletionEmail(

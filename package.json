@@ -1,6 +1,6 @@
 {
   "name": "testing-nest",
-  "version": "1.9.14",
+  "version": "1.9.21",
   "description": "",
   "author": "",
   "private": true,
@@ -96,7 +96,8 @@
     "coverageDirectory": "../coverage",
     "testEnvironment": "node",
     "moduleNameMapper": {
-      "^src/(.*)$": "<rootDir>/$1"
+      "^src/(.*)$": "<rootDir>/$1",
+      "^(\\.{1,2}/.*)\\.js$": "$1"
     }
   }
 }

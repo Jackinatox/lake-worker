@@ -81,6 +81,9 @@ Returns the current running status of all scheduled jobs.
     GenerateDeletionEmails: {
       isRunning: boolean;
     }
+    ProcessSuspensions: {
+      isRunning: boolean;
+    }
   }
 }
 ```
@@ -95,7 +98,8 @@ Returns the current running status of all scheduled jobs.
     "DeleteServers": { "isRunning": false },
     "SendEmails": { "isRunning": true },
     "GenerateExpiryEmails": { "isRunning": false },
-    "GenerateDeletionEmails": { "isRunning": false }
+    "GenerateDeletionEmails": { "isRunning": false },
+    "ProcessSuspensions": { "isRunning": false }
   }
 }
 ```
@@ -343,7 +347,7 @@ Manually triggers a specific job to run immediately.
 **Path Parameters:**
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `jobName` | string | One of: `ExpireServers`, `DeleteServers`, `SendEmails`, `GenerateExpiryEmails`, `GenerateDeletionEmails` |
+| `jobName` | string | One of: `ExpireServers`, `DeleteServers`, `SendEmails`, `GenerateExpiryEmails`, `GenerateDeletionEmails`, `ProcessSuspensions` |
 
 **Response (Success):**
 
@@ -406,6 +410,7 @@ Manually triggers a specific job to run immediately.
 | `SendEmails`             | Every 5 minutes  | Processes email queue and sends pending emails via SMTP                  |
 | `GenerateExpiryEmails`   | Daily at 8:00 AM | Creates reminder emails for servers expiring in 1 or 7 days              |
 | `GenerateDeletionEmails` | Daily at 9:00 AM | Creates reminder emails for servers being deleted in 1 or 7 days         |
+| `ProcessSuspensions`     | Every 30 minutes | Closes suspensions past their end date: deletes the server or lifts it   |
 
 ---
 

@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import {
   FactorioConfig,
   HytaleConfig,
+  ModpackConfig,
   SatisfactoryConfig,
   ValheimConfig,
 } from './GameConfig';
@@ -83,6 +84,28 @@ export class EnvironmentService {
     }
 
     return startAndVars;
+  }
+
+  /**
+   * Modrinth Generic installer egg. The egg declares only two variables —
+   * PROJECT_ID (required) and VERSION_ID (optional, defaults to "latest") — and
+   * downloads/installs the pack itself, writing its own server.properties from
+   * the pack's overrides. We therefore do NOT push gameSpecificConfig
+   * (maxPlayers, difficulty, …) here — the pack's own config wins. The startup
+   * command is the egg's own default; it must not reuse a flavor egg's startup.
+   */
+  modrinth(modpack: ModpackConfig): any {
+    return {
+      environment: {
+        PROJECT_ID: modpack.projectId,
+        VERSION_ID: modpack.versionId || 'latest',
+      },
+      // Verbatim default startup from the "Modrinth Generic" egg. Single-quoted
+      // because it contains backticks (`cat .serverjar`) that must reach the
+      // shell literally, not be evaluated by JS.
+      startup:
+        'java $([[ -f user_jvm_args.txt ]] && printf %s "@user_jvm_args.txt") -Xms128M -Xmx{{SERVER_MEMORY}}M -Dterminal.jline=false -Dterminal.ansi=true $([[ ! -f unix_args.txt ]] && printf %s "-jar `cat .serverjar`" || printf %s "@unix_args.txt")',
+    };
   }
 
   satisfactory(gameConfig: SatisfactoryConfig): any {

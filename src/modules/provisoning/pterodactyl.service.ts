@@ -97,23 +97,47 @@ export class PterodactylService {
 
       await job.updateProgress(30);
 
-      const serverId =
-        await this.orderService.createGameServerRecord(validatedOrder);
+      // A retried job must not create a second DB record / PT server
+      const existing =
+        await this.orderService.findExistingServer(validatedOrder);
 
-      span.setAttribute('server.dbId', serverId);
+      let serverId: string;
+      let ptIdentifier: string;
+      let ptAdminId: number;
 
-      const ptServer = await this.createPterodactylServer(
-        serverOptions,
-        serverId,
-        validatedOrder.id,
-        job,
-      );
+      if (existing?.ptServerId && existing.ptAdminId) {
+        this.logger.log(
+          `Order ${order.id} already has PT server ${existing.ptServerId}, resuming provisioning`,
+        );
+        serverId = existing.serverId;
+        ptIdentifier = existing.ptServerId;
+        ptAdminId = existing.ptAdminId;
+        span.setAttribute('provisioning.resumed', true);
+      } else {
+        if (existing) {
+          serverId = existing.serverId;
+          await this.orderService.resetServerForRetry(serverId);
+        } else {
+          serverId =
+            await this.orderService.createGameServerRecord(validatedOrder);
+        }
+        span.setAttribute('server.dbId', serverId);
+
+        const ptServer = await this.createPterodactylServer(
+          serverOptions,
+          serverId,
+          validatedOrder.id,
+          job,
+        );
+        ptIdentifier = ptServer.identifier;
+        ptAdminId = ptServer.id;
+      }
       await job.updateProgress(60);
 
-      span.setAttribute('server.ptId', ptServer.identifier);
+      span.setAttribute('server.ptId', ptIdentifier);
 
       await this.ports.correctPorts(
-        ptServer.identifier,
+        ptIdentifier,
         order.creationGameData.slug,
         order.user,
       );
@@ -121,7 +145,7 @@ export class PterodactylService {
       await job.updateProgress(70);
 
       const scriptsEnabled = await this.installation.toggleScripts(
-        ptServer.id.toString(),
+        ptAdminId.toString(),
         false,
       );
       span.setAttribute('install.scriptsEnabled', scriptsEnabled);
@@ -129,7 +153,7 @@ export class PterodactylService {
       await job.updateProgress(75);
 
       const reinstallSuccessfull = await this.installation.triggerInstallation(
-        ptServer.id.toString(),
+        ptAdminId.toString(),
       );
 
       span.setAttribute('install.reinstallSuccessfull', reinstallSuccessfull);
@@ -144,8 +168,8 @@ export class PterodactylService {
           gameName: gameName,
           gameImageUrl: `${process.env.WEB_APP_URL}/images/light/games/icons/${gameName.toLowerCase()}.webp`,
           serverName: serverOptions.name,
-          serverUrl: `${process.env.WEB_APP_URL}/gameserver/${ptServer.identifier}`,
-          extensionUrl: `${process.env.WEB_APP_URL}/gameserver/${ptServer.identifier}/upgrade`,
+          serverUrl: `${process.env.WEB_APP_URL}/gameserver/${ptIdentifier}`,
+          extensionUrl: `${process.env.WEB_APP_URL}/gameserver/${ptIdentifier}/upgrade`,
           cpuVCores: validatedOrder.cpuPercent / 100,
           ramMB: validatedOrder.ramMB,
           diskMB: validatedOrder.diskMB,
@@ -158,7 +182,7 @@ export class PterodactylService {
       );
 
       this.logger.log(
-        `Provisioned server ${ptServer.identifier} (DB ID: ${serverId}) for order ${order.id}`,
+        `Provisioned server ${ptIdentifier} (DB ID: ${serverId}) for order ${order.id}`,
       );
       span.end();
       return serverId;

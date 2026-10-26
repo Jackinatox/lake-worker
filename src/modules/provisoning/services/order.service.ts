@@ -96,7 +96,8 @@ export class OrderService {
     const dbServer = await this.prisma.gameServer.create({
       data: {
         status: 'CREATED',
-        backupCount: 0, // Will be updated after PT server creation
+        backupCount: order.backupCount,
+        resourceTierId: order.resourceTierId,
         cpuPercent: order.cpuPercent,
         diskMB: order.diskMB,
         price: order.price,
@@ -109,6 +110,8 @@ export class OrderService {
         gameConfig: order.gameConfig || undefined,
         name: serverName,
         type: ORDER_TYPE_TO_SERVER_TYPE[order.type],
+        // Link immediately so a retried job reuses this record instead of creating a new one
+        ServerOrder: { connect: { id: order.id } },
       },
     });
 
@@ -116,6 +119,38 @@ export class OrderService {
       `Created game server record ${dbServer.id} for order ${order.id}`,
     );
     return dbServer.id;
+  }
+
+  /**
+   * Returns the server record a previous attempt of this order already created,
+   * so a retried job reuses it instead of creating duplicates.
+   * ptServerId/ptAdminId are null if the PT server creation failed.
+   */
+  async findExistingServer(order: GameServerOrder): Promise<{
+    serverId: string;
+    ptServerId: string | null;
+    ptAdminId: number | null;
+  } | null> {
+    if (!order.gameServerId) return null;
+
+    const server = await this.prisma.gameServer.findUnique({
+      where: { id: order.gameServerId },
+    });
+    if (!server) return null;
+
+    return {
+      serverId: server.id,
+      ptServerId: server.ptServerId,
+      ptAdminId: server.ptAdminId,
+    };
+  }
+
+  async resetServerForRetry(serverId: string): Promise<void> {
+    await this.prisma.gameServer.update({
+      where: { id: serverId },
+      data: { status: 'CREATED', errorText: null },
+    });
+    this.logger.log(`Reusing server record ${serverId} for retry`);
   }
 
   async markServerActive(

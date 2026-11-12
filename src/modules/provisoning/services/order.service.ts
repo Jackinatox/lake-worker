@@ -1,6 +1,12 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
+import { LoggerService } from 'src/core/logger.service';
 import { PrismaService } from 'src/core/prisma.service';
-import { GameServerType, OrderType, Prisma } from 'src/generated/prisma/client';
+import {
+  GameServerType,
+  LogType,
+  OrderType,
+  Prisma,
+} from 'src/generated/prisma/client';
 import {
   FactorioConfig,
   HytaleConfig,
@@ -63,9 +69,10 @@ const ORDER_TYPE_TO_SERVER_TYPE: Record<OrderType, GameServerType> = {
  */
 @Injectable()
 export class OrderService {
-  private readonly logger = new Logger(OrderService.name);
-
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly logger: LoggerService,
+  ) {}
 
   async getValidatedOrder(orderId: string): Promise<ValidatedOrder> {
     const order = await this.prisma.gameServerOrder.findUniqueOrThrow({
@@ -126,6 +133,13 @@ export class OrderService {
 
     this.logger.log(
       `Created game server record ${dbServer.id} for order ${order.id}`,
+      {
+        component: OrderService.name,
+        logType: LogType.GAME_SERVER,
+        gameServerId: dbServer.id,
+        userId: order.userId,
+        orderId: order.id,
+      },
     );
     return dbServer.id;
   }
@@ -159,7 +173,11 @@ export class OrderService {
       where: { id: serverId },
       data: { status: 'CREATED', errorText: null },
     });
-    this.logger.log(`Reusing server record ${serverId} for retry`);
+    this.logger.log(`Reusing server record ${serverId} for retry`, {
+      component: OrderService.name,
+      logType: LogType.GAME_SERVER,
+      gameServerId: serverId,
+    });
   }
 
   async markServerActive(
@@ -179,6 +197,13 @@ export class OrderService {
     });
     this.logger.log(
       `Server ${serverId} marked as ACTIVE with PT ID ${ptServerId} and PT Admin ID ${ptAdminId}`,
+      {
+        component: OrderService.name,
+        logType: LogType.GAME_SERVER,
+        gameServerId: serverId,
+        ptServerId,
+        ptAdminId,
+      },
     );
   }
 
@@ -187,6 +212,11 @@ export class OrderService {
       where: { id: serverId },
       data: { status: 'CREATION_FAILED', errorText: error || null },
     });
-    this.logger.warn(`Server ${serverId} marked as CREATION_FAILED`);
+    this.logger.warn(`Server ${serverId} marked as CREATION_FAILED`, {
+      component: OrderService.name,
+      logType: LogType.GAME_SERVER,
+      gameServerId: serverId,
+      error,
+    });
   }
 }

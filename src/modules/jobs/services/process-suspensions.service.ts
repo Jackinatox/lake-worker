@@ -4,6 +4,7 @@ import { PrismaService } from 'src/core/prisma.service';
 import {
   GameServerStatus,
   LogLevel,
+  LogSource,
   LogType,
   WorkerJobType,
 } from 'src/generated/prisma/client';
@@ -356,7 +357,7 @@ export class ProcessSuspensionsService {
   }
 
   /**
-   * Mirrors the event into ApplicationLog so `getSuspensionHistory` in the lake shows what
+   * Mirrors the event into the Log table so `getSuspensionHistory` in the lake shows what
    * the worker did next to what the admins did. A logging failure must not undo the work,
    * so this only warns.
    */
@@ -368,8 +369,9 @@ export class ProcessSuspensionsService {
     details: Record<string, unknown>,
   ): Promise<void> {
     try {
-      await this.prisma.applicationLog.create({
+      await this.prisma.log.create({
         data: {
+          source: LogSource.WORKER,
           level: event === 'EXPIRED_DELETED' ? LogLevel.WARN : LogLevel.INFO,
           type: LogType.GAME_SERVER,
           instanceId: process.env.INSTANCE_ID ?? 'nest-lake-worker',
@@ -377,8 +379,10 @@ export class ProcessSuspensionsService {
             event === 'EXPIRED_DELETED'
               ? 'Suspension expired, gameserver deleted by the worker'
               : 'Suspension expired, gameserver released by the worker',
+          component: ProcessSuspensionsService.name,
           gameServerId: server.id,
           userId: server.userId,
+          jobRunId: ctx.jobRunId,
           details: JSON.parse(
             JSON.stringify({
               event: `${SUSPENSION_EVENT_PREFIX}${event}`,
@@ -390,7 +394,7 @@ export class ProcessSuspensionsService {
     } catch (error) {
       await this.jobRunService.logWarn(
         ctx,
-        'Failed to write the suspension history entry to ApplicationLog',
+        'Failed to write the suspension history entry to the Log table',
         {
           suspensionId: suspension.id,
           serverId: server.id,

@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { Builder, NewServerOptions, Server } from '@avionrx/pterodactyl-js';
 import { withRetry } from 'src/lib/general/withRetry';
 
@@ -8,7 +8,6 @@ import { withRetry } from 'src/lib/general/withRetry';
  */
 @Injectable()
 export class PterodactylClientService {
-  private readonly logger = new Logger(PterodactylClientService.name);
   private readonly client = new Builder()
     .setURL(process.env.PTERODACTYL_URL!)
     .setAPIKey(process.env.PTERODACTYL_API_KEY!)

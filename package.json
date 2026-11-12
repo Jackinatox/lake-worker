@@ -1,6 +1,6 @@
 {
   "name": "testing-nest",
-  "version": "1.9.21",
+  "version": "1.9.25",
   "description": "",
   "author": "",
   "private": true,
@@ -28,15 +28,6 @@
     "@nestjs/mapped-types": "^2.1.0",
     "@nestjs/platform-express": "^11.1.16",
     "@nestjs/schedule": "^6.1.1",
-    "@opentelemetry/api": "^1.9.0",
-    "@opentelemetry/auto-instrumentations-node": "^0.67.3",
-    "@opentelemetry/exporter-trace-otlp-http": "^0.208.0",
-    "@opentelemetry/instrumentation-winston": "^0.53.0",
-    "@opentelemetry/resources": "^2.6.0",
-    "@opentelemetry/sdk-metrics": "^2.6.0",
-    "@opentelemetry/sdk-node": "^0.208.0",
-    "@opentelemetry/sdk-trace-node": "^2.6.0",
-    "@opentelemetry/semantic-conventions": "^1.40.0",
     "@prisma/adapter-mariadb": "^7.8.0",
     "@prisma/adapter-pg": "^7.8.0",
     "@prisma/client": "^7.8.0",
@@ -45,12 +36,9 @@
     "bullmq": "^5.70.4",
     "class-transformer": "^0.5.1",
     "class-validator": "^0.14.4",
-    "nest-winston": "^1.10.2",
     "nodemailer": "^7.0.13",
     "reflect-metadata": "^0.2.2",
-    "rxjs": "^7.8.2",
-    "winston": "^3.19.0",
-    "winston-loki": "^6.1.4"
+    "rxjs": "^7.8.2"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3.3.5",

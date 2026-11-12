@@ -10,12 +10,13 @@ import {
 } from '@nestjs/common';
 import { CreateProvisioningJobDto } from './dto/create-provisioning-job.dto';
 import { QueueProvisionService } from './queuing.service';
-import { trace } from '@opentelemetry/api';
 import { Queue } from 'bullmq';
 import { InjectQueue } from '@nestjs/bullmq';
 import { ChangeGameDto } from './dto/ChangeGameDto';
 import { ChangeGameService } from './services/change-game.service';
+import { LogContextService } from 'src/core/log-context.service';
 import { LoggerService } from 'src/core/logger.service';
+import { LogType } from 'src/generated/prisma/client';
 
 @Controller({
   path: 'queue',
@@ -26,30 +27,16 @@ export class ProvisioningController {
     private provisioningService: QueueProvisionService,
     private changeGameService: ChangeGameService,
     private logger: LoggerService,
+    private logContext: LogContextService,
     @InjectQueue('provisioning') private provisioningQueue: Queue,
   ) {}
 
   @Post('provision')
   @HttpCode(HttpStatus.ACCEPTED)
   async createJob(@Body() dto: CreateProvisioningJobDto) {
-    const tracer = trace.getTracer('provisioning-api');
-
-    return tracer.startActiveSpan(
-      'order.enqueue-provisioning',
-      {
-        attributes: {
-          'order.id': dto.orderId,
-        },
-      },
-      async (span) => {
-        try {
-          return await this.provisioningService.createProvisioningJob(
-            dto.orderId,
-          );
-        } finally {
-          span.end();
-        }
-      },
+    return this.logContext.run(
+      { component: ProvisioningController.name, type: LogType.GAME_SERVER },
+      () => this.provisioningService.createProvisioningJob(dto.orderId),
     );
   }
 
@@ -76,13 +63,22 @@ export class ProvisioningController {
   @Post('changeGame')
   @HttpCode(HttpStatus.OK)
   async changeGame(@Body() dto: ChangeGameDto) {
-    this.logger.log('Changing Game', { changeGamedatato: dto });
-    return this.changeGameService.changeGame({
-      ptServerId: dto.ptServerId,
-      gameSlug: dto.gameSlug,
-      gameConfig: dto.gameConfig,
-      deleteFiles: dto.deleteFiles,
-      userId: dto.userId,
-    });
+    return this.logContext.run(
+      {
+        component: ProvisioningController.name,
+        type: LogType.GAME_SERVER,
+        userId: dto.userId,
+      },
+      () => {
+        this.logger.log('Changing Game', { details: { changeGameData: dto } });
+        return this.changeGameService.changeGame({
+          ptServerId: dto.ptServerId,
+          gameSlug: dto.gameSlug,
+          gameConfig: dto.gameConfig,
+          deleteFiles: dto.deleteFiles,
+          userId: dto.userId,
+        });
+      },
+    );
   }
 }

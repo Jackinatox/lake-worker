@@ -1,51 +1,43 @@
 import { Processor, WorkerHost, OnWorkerEvent } from '@nestjs/bullmq';
-import { Logger } from '@nestjs/common';
 import { Job } from 'bullmq';
-import {
-  context,
-  trace,
-  propagation,
-  SpanStatusCode,
-} from '@opentelemetry/api';
+import { LogContextService } from 'src/core/log-context.service';
+import { LoggerService } from 'src/core/logger.service';
 import { PrismaService } from 'src/core/prisma.service';
+import { LogType } from 'src/generated/prisma/client';
 import { PterodactylService } from './pterodactyl.service';
 
 interface ProvisioningJobData {
   orderId: string;
-  traceparent?: string;
 }
 
 @Processor('provisioning')
 export class ProvisioningProcessor extends WorkerHost {
-  private readonly logger = new Logger(ProvisioningProcessor.name);
-
   constructor(
     private prisma: PrismaService,
     private pterodactyl: PterodactylService,
+    private readonly logger: LoggerService,
+    private readonly logContext: LogContextService,
   ) {
     super();
   }
 
   async process(job: Job<ProvisioningJobData>): Promise<void> {
-    const { orderId, traceparent } = job.data;
+    const { orderId } = job.data;
 
-    // Rehydrate trace context from traceparent
-    let activeContext = context.active();
-    if (traceparent) {
-      const carrier = { traceparent };
-      activeContext = propagation.extract(context.active(), carrier);
-    }
-
-    // Run the work within the rehydrated trace context
-    return context.with(activeContext, async () => {
-      const tracer = trace.getTracer('provisioning-worker');
-
-      return tracer.startActiveSpan('provision-server-worker', async (span) => {
+    // Everything logged below this scope — however deep in the call stack —
+    // is attributed to this order's user, and once the game server record
+    // exists, provisionServer narrows the scope to include its id too.
+    return this.logContext.run(
+      {
+        component: ProvisioningProcessor.name,
+        type: LogType.GAME_SERVER,
+      },
+      async () => {
         try {
-          span.setAttribute('order.id', orderId);
-          span.setAttribute('job.id', job.id || 'unknown');
-
-          this.logger.log(`Processing job ${job.id} for order ${orderId}`);
+          this.logger.log(`Processing job ${job.id} for order ${orderId}`, {
+            orderId,
+            jobId: job.id,
+          });
 
           // Fetch full order with relations
           const order = await this.prisma.gameServerOrder.findUnique({
@@ -61,47 +53,50 @@ export class ProvisioningProcessor extends WorkerHost {
             throw new Error(`Order ${orderId} not found`);
           }
 
-          span.setAttribute('user.id', order.userId);
-          span.setAttribute('game.id', order.creationGameData.id);
-          span.setAttribute('game.name', order.creationGameData.name);
+          return await this.logContext.run(
+            { userId: order.userId },
+            async () => {
+              this.logger.debug('Order resolved, starting provisioning', {
+                orderId,
+                gameId: order.creationGameData.id,
+                gameName: order.creationGameData.name,
+              });
 
-          await job.updateProgress(10);
-
-          await this.pterodactyl.provisionServer(order, job);
-
-          await job.updateProgress(100);
-
-          // this.logger.log(
-          //   `Successfully provisioned server ${serverId} for order ${orderId}`,
-          // );
-          span.setStatus({ code: SpanStatusCode.OK });
-        } catch (error) {
-          this.logger.error(
-            `Failed to provision server for order ${orderId}`,
-            error,
+              await job.updateProgress(10);
+              await this.pterodactyl.provisionServer(order, job);
+              await job.updateProgress(100);
+            },
           );
-          if (error instanceof Error) {
-            span.recordException(error);
-            span.setStatus({
-              code: SpanStatusCode.ERROR,
-              message: error.message,
-            });
-          }
+        } catch (error) {
+          this.logger.error(`Failed to provision server for order ${orderId}`, {
+            orderId,
+            jobId: job.id,
+            error,
+          });
           throw error;
-        } finally {
-          span.end();
         }
-      });
-    });
+      },
+    );
   }
 
   @OnWorkerEvent('completed')
   onCompleted(job: Job<ProvisioningJobData>) {
-    this.logger.log(`Job ${job.id} completed for order ${job.data.orderId}`);
+    this.logger.log(`Job ${job.id} completed for order ${job.data.orderId}`, {
+      component: ProvisioningProcessor.name,
+      logType: LogType.GAME_SERVER,
+      orderId: job.data.orderId,
+      jobId: job.id,
+    });
   }
 
   @OnWorkerEvent('failed')
   onFailed(job: Job<ProvisioningJobData>, error: Error) {
-    this.logger.error(`Job ${job.id} failed: ${error.message}`);
+    this.logger.error(`Job ${job.id} failed: ${error.message}`, {
+      component: ProvisioningProcessor.name,
+      logType: LogType.GAME_SERVER,
+      orderId: job.data.orderId,
+      jobId: job.id,
+      error,
+    });
   }
 }

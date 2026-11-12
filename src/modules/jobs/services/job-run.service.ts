@@ -34,7 +34,10 @@ export class JobRunService {
       },
     });
 
-    this.logger.log(`Job ${jobType} started`, { jobRunId: jobRun.id });
+    this.logger.log(`Job ${jobType} started`, {
+      jobRunId: jobRun.id,
+      component: 'Job',
+    });
 
     return {
       jobRunId: jobRun.id,
@@ -62,9 +65,12 @@ export class JobRunService {
 
     this.logger.log('Job completed', {
       jobRunId,
-      processed: results.processed,
-      total: results.total,
-      failed: results.failed,
+      component: 'Job',
+      details: {
+        processed: results.processed,
+        total: results.total,
+        failed: results.failed,
+      },
     });
   }
 
@@ -91,8 +97,8 @@ export class JobRunService {
 
     this.logger.error(`Job failed`, {
       jobRunId,
-      error: error.message,
-      stack: error.stack,
+      component: 'Job',
+      error,
     });
   }
 
@@ -115,9 +121,13 @@ export class JobRunService {
     });
   }
 
-  // TODO: Use the global logging util
   /**
-   * Log to database with job context
+   * Log with job context.
+   *
+   * This no longer writes to the Log table itself: LoggerService is the single
+   * write path, so job lines, provisioning lines and everything else land in
+   * the same table with the same batching and failure handling. The signature
+   * is unchanged so existing callers keep working.
    */
   async log(
     context: JobContext,
@@ -126,40 +136,14 @@ export class JobRunService {
     details?: Record<string, unknown>,
     entityContext?: { gameServerId?: string; userId?: string },
   ): Promise<void> {
-    try {
-      await this.prisma.workerLog.create({
-        data: {
-          jobType: context.jobType,
-          jobRun: context.jobRunId,
-          jobRunId: context.jobRunId,
-          level,
-          message,
-          details: details ? JSON.parse(JSON.stringify(details)) : null,
-          gameServerId: entityContext?.gameServerId ?? null,
-          userId: entityContext?.userId ?? null,
-        },
-      });
-
-      // Also log to console/Loki
-      const logMethod =
-        level === LogLevel.ERROR || level === LogLevel.FATAL
-          ? 'error'
-          : level === LogLevel.WARN
-            ? 'warn'
-            : 'log';
-
-      this.logger[logMethod](`[${context.jobType}] ${message}`, {
-        jobRunId: context.jobRunId,
-        ...details,
-        ...entityContext,
-      });
-    } catch (dbError) {
-      // Fallback to console if database logging fails
-      this.logger.error('Failed to log to database', {
-        error: dbError instanceof Error ? dbError.message : String(dbError),
-        originalMessage: message,
-      });
-    }
+    this.logger.logAt(level, `[${context.jobType}] ${message}`, {
+      jobRunId: context.jobRunId,
+      component: 'Job',
+      gameServerId: entityContext?.gameServerId,
+      userId: entityContext?.userId,
+      details,
+    });
+    return Promise.resolve();
   }
 
   // Convenience methods

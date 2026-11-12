@@ -1,5 +1,3 @@
-import './tracing';
-
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { ValidationPipe, VersioningType } from '@nestjs/common';
@@ -14,7 +12,11 @@ async function bootstrap() {
   const logger = app.get(LoggerService);
   app.useLogger(logger);
 
-  logger.log('Application starting...');
+  // Required so LoggerService.onApplicationShutdown runs on SIGTERM/SIGINT and
+  // the buffered log lines still reach the database when the container stops.
+  app.enableShutdownHooks();
+
+  logger.log('Application starting...', { component: 'Bootstrap' });
 
   // Enable validation globally - validates all incoming request bodies
   app.useGlobalPipes(

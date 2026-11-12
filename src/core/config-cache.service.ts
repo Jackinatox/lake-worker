@@ -1,6 +1,8 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { CONFIG_KEY_DELETE_GAMESERVER_AFTER_DAYS } from '../lib/GlobalConsstants';
 import { PrismaService } from './prisma.service';
+import { LoggerService } from './logger.service';
+import { LogType } from '../generated/prisma/client';
 
 /** How long a cached value stays fresh before the next DB read. */
 const DEFAULT_TTL_MS = 5 * 60 * 1000; // 5 minutes
@@ -12,12 +14,13 @@ interface CacheEntry<T> {
 
 @Injectable()
 export class ConfigCacheService {
-  private readonly logger = new Logger(ConfigCacheService.name);
-
   private readonly cache = new Map<string, CacheEntry<unknown>>();
   private readonly ttlMs: number = DEFAULT_TTL_MS;
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly logger: LoggerService,
+  ) {}
 
   // ─── Named accessors ──────────────────────────────────────────────────────
 
@@ -65,13 +68,20 @@ export class ConfigCacheService {
   /** Explicitly drop a key from the cache (e.g. after an admin update). */
   invalidate(key: string): void {
     this.cache.delete(key);
-    this.logger.debug(`Cache invalidated for key "${key}"`);
+    this.logger.debug(`Cache invalidated for key "${key}"`, {
+      component: ConfigCacheService.name,
+      logType: LogType.SYSTEM,
+      key,
+    });
   }
 
   /** Drop all cached values. */
   invalidateAll(): void {
     this.cache.clear();
-    this.logger.debug('Full config cache invalidated');
+    this.logger.debug('Full config cache invalidated', {
+      component: ConfigCacheService.name,
+      logType: LogType.SYSTEM,
+    });
   }
 
   // ─── Internals ────────────────────────────────────────────────────────────
@@ -91,7 +101,12 @@ export class ConfigCacheService {
     } catch (err) {
       this.logger.error(
         `Failed to fetch config key "${key}" from DB – using fallback`,
-        err,
+        {
+          component: ConfigCacheService.name,
+          logType: LogType.SYSTEM,
+          key,
+          error: err,
+        },
       );
       return null;
     }

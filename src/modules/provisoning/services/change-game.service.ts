@@ -5,8 +5,9 @@ import {
   ForbiddenException,
 } from '@nestjs/common';
 import { PrismaService } from 'src/core/prisma.service';
+import { LogContextService } from 'src/core/log-context.service';
 import { LoggerService } from 'src/core/logger.service';
-import { trace, Span } from '@opentelemetry/api';
+import { LogType, User } from 'src/generated/prisma/client';
 import { EnvironmentService } from '../../pterodactyl/Environment/environment.service';
 import { PterodactylPortService } from '../../pterodactyl/Ports/port.service';
 import { InstallationService } from '../../pterodactyl/Installation/installation.service';
@@ -37,34 +38,40 @@ interface StartupBody {
 
 @Injectable()
 export class ChangeGameService {
-  private readonly tracer = trace.getTracer('ChangeGameService', '1.0.0');
   private readonly ptUrl = process.env.PTERODACTYL_URL!;
   private readonly ptAdminKey = process.env.PTERODACTYL_API_KEY!;
 
   constructor(
     private readonly prisma: PrismaService,
     private readonly logger: LoggerService,
+    private readonly logContext: LogContextService,
     private readonly envService: EnvironmentService,
     private readonly ports: PterodactylPortService,
     private readonly installation: InstallationService,
   ) {}
 
   async changeGame(input: ChangeGameInput): Promise<{ success: boolean }> {
-    return this.tracer.startActiveSpan('changeGame', async (span: Span) => {
-      const {
-        ptServerId,
-        gameSlug,
-        gameConfig,
-        deleteFiles = true,
+    const {
+      ptServerId,
+      gameSlug,
+      gameConfig,
+      deleteFiles = true,
+      userId,
+    } = input;
+
+    return this.logContext.run(
+      {
+        component: ChangeGameService.name,
+        type: LogType.GAME_SERVER,
         userId,
-      } = input;
+      },
+      async () => {
+        this.logger.debug('Game change requested', {
+          ptServerId,
+          newGameSlug: gameSlug,
+          deleteFiles,
+        });
 
-      span.setAttribute('server.ptId', ptServerId);
-      span.setAttribute('game.newSlug', gameSlug);
-      span.setAttribute('user.id', userId);
-      span.setAttribute('deleteFiles', deleteFiles);
-
-      try {
         // 1. Validate server ownership and get server + new game data
         const [gameServer, newGameData] = await Promise.all([
           this.prisma.gameServer.findFirst({
@@ -96,75 +103,109 @@ export class ChangeGameService {
           );
         }
 
-        span.setAttribute('server.dbId', gameServer.id);
-        span.setAttribute('game.name', newGameData.name);
+        // Captured as locals so the narrowing above survives into the closure.
+        const validated = {
+          gameServerId: gameServer.id,
+          ptServerId: gameServer.ptServerId,
+          ptAdminId: gameServer.ptAdminId,
+          user: gameServer.user,
+          ptKey: gameServer.user.ptKey,
+        };
 
-        // 2. Kill the server
-        await this.killServer(ptServerId, gameServer.user.ptKey);
-
-        // Small delay to ensure server is fully stopped
-        await this.delay(200);
-
-        // 3. Build and apply new startup configuration
-        const startupBody = this.buildStartupBody(gameConfig, newGameData.slug);
-        await this.updateServerStartup(gameServer.ptAdminId, startupBody);
-
-        // Small delay before port configuration
-        await this.delay(2000);
-
-        // 4. Correct ports for the new game
-        await this.ports.correctPorts(
-          gameServer.ptServerId,
-          newGameData.slug,
-          gameServer.user,
+        // Server resolved: attribute the rest of the change to it.
+        return this.logContext.runForServer(
+          { gameServerId: validated.gameServerId, userId },
+          () =>
+            this.applyGameChange({
+              ...validated,
+              newGameData,
+              gameSlug,
+              gameConfig,
+              deleteFiles,
+            }),
         );
+      },
+    );
+  }
 
-        await this.delay(1000);
+  /**
+   * Performs the actual game change. Every value here is already validated by
+   * `changeGame`, which is why the ids are plain non-nullable types.
+   */
+  private async applyGameChange({
+    gameServerId,
+    ptServerId,
+    ptAdminId,
+    user,
+    ptKey,
+    newGameData,
+    gameSlug,
+    gameConfig,
+    deleteFiles,
+  }: {
+    gameServerId: string;
+    ptServerId: string;
+    ptAdminId: number;
+    user: User;
+    ptKey: string;
+    newGameData: { id: number; name: string; slug: string };
+    gameSlug: string;
+    gameConfig: ChangeGameInput['gameConfig'];
+    deleteFiles: boolean;
+  }): Promise<{ success: boolean }> {
+    try {
+      // 2. Kill the server
+      await this.killServer(ptServerId, ptKey);
 
-        // 5. Enable install scripts
-        await this.installation.toggleScripts(
-          gameServer.ptAdminId.toString(),
-          false,
-        );
+      // Small delay to ensure server is fully stopped
+      await this.delay(200);
 
-        // 6. Update the database with new game configuration
-        await this.prisma.gameServer.update({
-          where: { id: gameServer.id },
-          data: {
-            gameDataId: newGameData.id,
-            gameConfig: gameConfig as any,
-          },
-        });
+      // 3. Build and apply new startup configuration
+      const startupBody = this.buildStartupBody(gameConfig, newGameData.slug);
+      await this.updateServerStartup(ptAdminId, startupBody);
 
+      // Small delay before port configuration
+      await this.delay(2000);
+
+      // 4. Correct ports for the new game
+      await this.ports.correctPorts(ptServerId, newGameData.slug, user);
+
+      await this.delay(1000);
+
+      // 5. Enable install scripts
+      await this.installation.toggleScripts(ptAdminId.toString(), false);
+
+      // 6. Update the database with new game configuration
+      await this.prisma.gameServer.update({
+        where: { id: gameServerId },
+        data: {
+          gameDataId: newGameData.id,
+          gameConfig: gameConfig as any,
+        },
+      });
+
+      await this.delay(500);
+      if (deleteFiles) {
+        await this.DeleteAllFilesUserServer(ptServerId, ptKey);
         await this.delay(500);
-        if (deleteFiles) {
-          await this.DeleteAllFilesUserServer(
-            gameServer.ptServerId,
-            gameServer.user.ptKey,
-          );
-          await this.delay(500);
-        }
-
-        // 7. Reinstall the server
-        await this.reinstallServer(ptServerId, gameServer.user.ptKey);
-
-        this.logger.log(
-          `Changed game for server ${ptServerId} to ${newGameData.name} (gameSlug: ${gameSlug})`,
-        );
-
-        span.setAttribute('changeGame.success', true);
-        span.end();
-
-        return { success: true };
-      } catch (error) {
-        if (error instanceof Error) {
-          span.recordException(error);
-        }
-        span.setAttribute('changeGame.success', false);
-        span.end();
-        throw error;
       }
-    });
+
+      // 7. Reinstall the server
+      await this.reinstallServer(ptServerId, ptKey);
+
+      this.logger.log(
+        `Changed game for server ${ptServerId} to ${newGameData.name} (gameSlug: ${gameSlug})`,
+        { ptServerId, newGameSlug: gameSlug, newGameName: newGameData.name },
+      );
+
+      return { success: true };
+    } catch (error) {
+      this.logger.error(
+        `Failed to change game for server ${ptServerId} to ${gameSlug}`,
+        { ptServerId, newGameSlug: gameSlug, error },
+      );
+      throw error;
+    }
   }
 
   private buildStartupBody(

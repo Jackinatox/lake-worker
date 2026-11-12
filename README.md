@@ -187,8 +187,7 @@ Handles asynchronous server provisioning via Pterodactyl.
 
 ```json
 {
-  "orderId": "string",
-  "traceparent": "string (optional — W3C trace context for distributed tracing)"
+  "orderId": "string"
 }
 ```
 

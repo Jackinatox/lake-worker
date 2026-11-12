@@ -6,6 +6,7 @@ import {
   Email,
   EmailAttachment,
   EmailStatus,
+  LogType,
 } from 'src/generated/prisma/client';
 import * as nodemailer from 'nodemailer';
 import type { Transporter } from 'nodemailer';
@@ -65,10 +66,13 @@ export class EmailTransportService {
       });
 
       this.logger.log(`Email sent to ${email.recipient}`, {
-        emailId: email.id,
-        type: email.type,
-        // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-        messageId: response.messageId,
+        logType: LogType.EMAIL,
+        details: {
+          emailId: email.id,
+          emailType: email.type,
+          // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+          messageId: response.messageId,
+        },
       });
 
       return { success: true };
@@ -87,10 +91,13 @@ export class EmailTransportService {
       });
 
       this.logger.error(`Failed to send email to ${email.recipient}`, {
-        emailId: email.id,
-        type: email.type,
-        error: errorMessage,
-        retryCount: email.retries + 1,
+        logType: LogType.EMAIL,
+        details: {
+          emailId: email.id,
+          emailType: email.type,
+          error: errorMessage,
+          retryCount: email.retries + 1,
+        },
       });
 
       return { success: false, error: errorMessage };

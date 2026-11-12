@@ -2,6 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { getQueueToken } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
+import { loggingTestProviders } from 'src/core/testing/logging.testing';
 import { QueueProvisionService } from './queuing.service';
 
 // Mock PrismaService before importing to avoid loading the real Prisma client
@@ -56,6 +57,7 @@ describe('ProvisioningService', () => {
           provide: getQueueToken('provisioning'),
           useValue: mockQueue,
         },
+        ...loggingTestProviders,
       ],
     }).compile();
 

@@ -7,6 +7,7 @@ import { CoreModule } from './core/core.module';
 import { ProvisioningModule } from './modules/provisoning/provisioning.module';
 import { JobsModule } from './modules/jobs/jobs.module';
 import { PterodactylModule } from './modules/pterodactyl/pterodactyl.module';
+import { WingsModule } from './modules/pterodactyl/Wings/wings.module';
 
 @Module({
   imports: [
@@ -21,6 +22,7 @@ import { PterodactylModule } from './modules/pterodactyl/pterodactyl.module';
     ProvisioningModule,
     JobsModule,
     PterodactylModule,
+    WingsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

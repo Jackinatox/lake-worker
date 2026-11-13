@@ -99,6 +99,30 @@ Returns `400` if no matching server is found, `500` if port correction fails.
 
 ---
 
+### Servers — `/v1/servers`
+
+#### `POST /v1/servers/wings`
+
+Read-only lookup of the wing each server runs on (a node in Pterodactyl terms), straight from the Pterodactyl
+database. Used by lake's admin gameserver list (which gives up after 2 s and shows an
+error instead). Ids unknown to the panel are left out of `wings`.
+
+**Request body:**
+
+```json
+{ "ptAdminIds": [12, 34] }
+```
+
+`ptAdminIds` — Pterodactyl server ids (lake's `GameServer.ptAdminId`), 1–500 positive integers.
+
+**Response:**
+
+```json
+{ "wings": { "12": { "id": 1, "name": "wing-fra-1" } } }
+```
+
+---
+
 ### Jobs — `/v1/jobs`
 
 Monitoring and manual control of scheduled background jobs.

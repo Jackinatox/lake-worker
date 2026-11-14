@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { LoggerService } from 'src/core/logger.service';
 import { PterodactylPrismaService } from 'src/core/pterodactyl-prisma.service';
 import { LogType, User } from 'src/generated/prisma/client';
+import { GAME_PORT_CONFIG, getGamePortConfig } from './game-ports';
 
 interface AllocationAttributes {
   id: number;
@@ -228,6 +229,89 @@ export class PterodactylPortService {
     }));
   }
 
+  /**
+   * Raises the server's Pterodactyl allocation limit to `minimum` if it is lower.
+   * Never lowers it: the limit is what the customer paid for (set by lake / provisioning).
+   * A `null` limit means unlimited.
+   */
+  async ensureAllocationLimit(
+    ptServerId: string,
+    minimum: number,
+  ): Promise<void> {
+    const server = await this.ptPrisma.servers.findUnique({
+      where: { uuidShort: ptServerId },
+      select: {
+        id: true,
+        allocation_id: true,
+        memory: true,
+        swap: true,
+        disk: true,
+        io: true,
+        cpu: true,
+        threads: true,
+        oom_disabled: true,
+        allocation_limit: true,
+        database_limit: true,
+        backup_limit: true,
+      },
+    });
+
+    if (!server) {
+      throw new Error(`Server ${ptServerId} not found in panel database`);
+    }
+    if (
+      server.allocation_limit === null ||
+      server.allocation_limit >= minimum
+    ) {
+      return;
+    }
+
+    // PATCH /build replaces the whole build, so every other value is sent back unchanged.
+    const response = await fetch(
+      `${this.pterodactylUrl}/api/application/servers/${server.id}/build`,
+      {
+        method: 'PATCH',
+        headers: {
+          Authorization: `Bearer ${this.pterodactylApiKey}`,
+          Accept: 'application/json',
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          allocation: server.allocation_id,
+          memory: server.memory,
+          swap: server.swap,
+          disk: server.disk,
+          io: server.io,
+          cpu: server.cpu,
+          threads: server.threads,
+          oom_disabled: server.oom_disabled === 1,
+          feature_limits: {
+            allocations: minimum,
+            databases: server.database_limit,
+            backups: server.backup_limit,
+          },
+        }),
+      },
+    );
+
+    if (!response.ok) {
+      const errorData = await response.text();
+      throw new Error(
+        `Failed to raise allocation limit: ${response.status} ${response.statusText} - ${errorData}`,
+      );
+    }
+
+    this.logger.log(
+      `Raised allocation limit of server ${ptServerId} from ${server.allocation_limit} to ${minimum}`,
+      {
+        ...this.base(),
+        ptServerId,
+        previousLimit: server.allocation_limit,
+        newLimit: minimum,
+      },
+    );
+  }
+
   private async findConsecutiveFreeBasePorts(
     nodeId: number,
     ip: string,
@@ -274,6 +358,10 @@ export class PterodactylPortService {
         return current;
       }
     }
+
+    // Extra ports the tier allows are removed to make room for the search and
+    // re-added (with new numbers) once the consecutive pair is secured.
+    const originalCount = current.length;
 
     // Remove all non-primary allocations to start clean (API writes only)
     for (const alloc of current.filter((a) => !a.is_default)) {
@@ -358,6 +446,7 @@ export class PterodactylPortService {
           `Server ${serverId}: secured consecutive ports ${primary.port} and ${assigned.port}`,
           { ...this.base(), ptServerId: serverId },
         );
+        await this.restoreExtraAllocations(serverId, apiKey, originalCount);
         return await this.listServerAllocations(serverId, apiKey);
       }
 
@@ -374,6 +463,32 @@ export class PterodactylPortService {
     throw new Error(
       `Failed to secure consecutive ports for server ${serverId} after ${maxAttempts} attempts`,
     );
+  }
+
+  /**
+   * Tops the server back up to `targetCount` allocations after the consecutive-port
+   * search removed its extras. Best effort: the game already has its ports, so a
+   * failure here is logged, not thrown.
+   */
+  private async restoreExtraAllocations(
+    serverId: string,
+    apiKey: string,
+    targetCount: number,
+  ): Promise<void> {
+    const current = await this.getServerAllocationsFromDb(serverId);
+    const missing = targetCount - (current?.length ?? targetCount);
+
+    for (let i = 0; i < missing; i++) {
+      try {
+        await this.assignAllocation(serverId, apiKey);
+      } catch (error) {
+        this.logger.warn(
+          `Could not restore extra allocation ${i + 1} of ${missing} on server ${serverId}`,
+          { ...this.base(), ptServerId: serverId, targetCount, error },
+        );
+        return;
+      }
+    }
   }
 
   private async setAllocationCount(
@@ -541,60 +656,9 @@ export class PterodactylPortService {
       { ...this.base(), ptServerId, gameSlug },
     );
 
-    const GAME_PORT_CONFIG: Record<
-      string,
-      {
-        requiredAllocations: number;
-        requiresConsecutivePorts?: boolean;
-        ports: ReadonlyArray<{
-          envVar?: string;
-          notes: string;
-          isSecondary: boolean;
-        }>;
-      }
-    > = {
-      minecraft: {
-        requiredAllocations: 1,
-        ports: [],
-      },
-      satisfactory: {
-        requiredAllocations: 2,
-        ports: [
-          {
-            envVar: 'RELIABLE_PORT',
-            notes: 'Satisfactory Reliable Port',
-            isSecondary: true,
-          },
-        ],
-      },
-      hytale: {
-        requiredAllocations: 2,
-        ports: [
-          {
-            envVar: 'QUERY_PORT',
-            notes: 'Hytale Source Query Port',
-            isSecondary: true,
-          },
-        ],
-      },
-      valheim: {
-        requiredAllocations: 2,
-        requiresConsecutivePorts: true,
-        ports: [
-          {
-            notes: 'Reliable Valheim port',
-            isSecondary: true,
-          },
-        ],
-      },
-    };
+    const gameConfig = getGamePortConfig(gameSlug);
 
-    const gameConfig = GAME_PORT_CONFIG[gameSlug] ?? {
-      requiredAllocations: 1,
-      ports: [],
-    };
-
-    if (!GAME_PORT_CONFIG[gameSlug]) {
+    if (!(gameSlug in GAME_PORT_CONFIG)) {
       this.logger.warn(
         `No port configuration found for game slug: ${gameSlug}, using default (1 allocation, no extra ports)`,
         { ...this.base(), ptServerId, gameSlug },
@@ -609,6 +673,13 @@ export class PterodactylPortService {
         gameSlug,
         requiredAllocations: gameConfig.requiredAllocations,
       },
+    );
+
+    // A game change or "fix ports" can need more ports than the server's limit allows
+    // (e.g. Minecraft on a 1-port tier switched to Satisfactory).
+    await this.ensureAllocationLimit(
+      ptServerId,
+      gameConfig.requiredAllocations,
     );
 
     const allocations = await this.setAllocationCount(
@@ -635,6 +706,14 @@ export class PterodactylPortService {
       allocations.length >= gameConfig.requiredAllocations
     ) {
       const secondaryAllocations = allocations.filter((a) => !a.is_default);
+      if (gameConfig.requiresConsecutivePorts && primaryAllocation) {
+        // The labelled secondary port must be the one right after the primary,
+        // not one of the extra ports the tier allows.
+        const nextPort = primaryAllocation.port + 1;
+        secondaryAllocations.sort(
+          (a, b) => Number(b.port === nextPort) - Number(a.port === nextPort),
+        );
+      }
 
       for (let i = 0; i < gameConfig.ports.length; i++) {
         const portConfig = gameConfig.ports[i];

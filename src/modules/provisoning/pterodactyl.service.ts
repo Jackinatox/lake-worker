@@ -21,6 +21,7 @@ import {
 import { LogContextService } from 'src/core/log-context.service';
 import { LoggerService } from 'src/core/logger.service';
 import { PterodactylPortService } from '../pterodactyl/Ports/port.service';
+import { allocationLimitFor } from '../pterodactyl/Ports/game-ports';
 import { InstallationService } from '../pterodactyl/Installation/installation.service';
 import { Server } from '@avionrx/pterodactyl-js';
 import { EmailService } from '../email/email.service';
@@ -212,6 +213,7 @@ export class PterodactylService {
         order.diskMB,
         order.backupCount,
       )
+      .setAllocationLimit(allocationLimitFor(order.allocations, gameSlug))
       .setLocation(order.creationLocation.ptLocationId)
       .setEnvironment(environmentConfig)
       .setStartWhenInstalled(false)

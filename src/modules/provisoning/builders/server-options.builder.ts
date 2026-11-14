@@ -39,7 +39,7 @@ export class ServerOptionsBuilder {
     swap: 512,
   };
   private featureLimits: FeatureLimits = {
-    allocations: 2,
+    allocations: 1,
     backups: 0,
     databases: 0,
     split_limit: 0,
@@ -91,6 +91,12 @@ export class ServerOptionsBuilder {
       swap: 512,
     };
     this.featureLimits.backups = backups;
+    return this;
+  }
+
+  /** Pterodactyl's `feature_limits.allocations`; counts the primary port too. */
+  setAllocationLimit(allocations: number): this {
+    this.featureLimits.allocations = allocations;
     return this;
   }
 

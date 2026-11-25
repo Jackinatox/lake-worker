@@ -158,20 +158,11 @@ export class JobScheduler {
       const errorMessage =
         error instanceof Error ? error.message : String(error);
 
+      // Forwarded to Telegram by the logger.
       this.logger.error(`Job ${name} failed`, {
         error: errorMessage,
         stack: error instanceof Error ? error.stack : undefined,
         duration,
-      });
-
-      // Always notify on critical failures
-      await this.notifications.notifyError({
-        errorMessage: `Job ${name} failed: ${errorMessage}`,
-        context: name,
-        details: {
-          duration,
-          stack: error instanceof Error ? error.stack : undefined,
-        },
       });
     } finally {
       this.isRunning[name] = false;

@@ -2,6 +2,7 @@ import {
   Injectable,
   LoggerService as NestLoggerService,
   OnApplicationShutdown,
+  Optional,
 } from '@nestjs/common';
 import {
   LogLevel,
@@ -11,6 +12,7 @@ import {
 } from '../generated/prisma/client';
 import { LogContext, LogContextService } from './log-context.service';
 import { PrismaService } from './prisma.service';
+import { TelegramAlertService } from './telegram-alert.service';
 
 /**
  * Second argument accepted by every log method.
@@ -28,6 +30,11 @@ export type LogOptions = Omit<LogContext, 'type'> & {
   details?: Record<string, unknown>;
   error?: unknown;
   /**
+   * ERROR and FATAL lines are forwarded to Telegram by default. Pass `false`
+   * for an error that is expected or already reported some other way.
+   */
+  notify?: boolean;
+  /**
    * Rejected on purpose. `type` would otherwise be silently folded into
    * `details` and look like it had set the category column. Use `logType` for
    * the log category, or `details: { type }` for a domain value.
@@ -43,6 +50,7 @@ const RESERVED_KEYS = new Set([
   'logType',
   'component',
   'details',
+  'notify',
 ]);
 
 /** Ordering used for threshold filtering. Prisma's LogLevel has no DEBUG. */
@@ -97,6 +105,8 @@ export class LoggerService implements NestLoggerService, OnApplicationShutdown {
   constructor(
     private readonly prisma: PrismaService,
     private readonly logContext: LogContextService,
+    // Optional so unit tests can build the logger without Telegram.
+    @Optional() private readonly alerts?: TelegramAlertService,
   ) {
     this.threshold = parseThreshold(process.env.LOG_LEVEL);
   }
@@ -181,6 +191,13 @@ export class LoggerService implements NestLoggerService, OnApplicationShutdown {
     }
 
     this.enqueue(entry);
+
+    if (
+      LEVEL_WEIGHT[level] >= LEVEL_WEIGHT[LogLevel.ERROR] &&
+      opts.notify !== false
+    ) {
+      this.alerts?.push(entry);
+    }
   }
 
   private writeConsole(entry: PendingLog): void {
@@ -308,7 +325,7 @@ export class LoggerService implements NestLoggerService, OnApplicationShutdown {
   }
 
   async onApplicationShutdown(): Promise<void> {
-    await this.flush();
+    await Promise.all([this.flush(), this.alerts?.flush()]);
   }
 }
 

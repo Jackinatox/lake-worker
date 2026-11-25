@@ -4,6 +4,8 @@ import { LogContextService } from './log-context.service';
 import { LoggerService } from './logger.service';
 import { PrismaService } from './prisma.service';
 import { PterodactylPrismaService } from './pterodactyl-prisma.service';
+import { TelegramAlertService } from './telegram-alert.service';
+import { TelegramClient } from './telegram.client';
 
 @Global()
 @Module({
@@ -11,6 +13,8 @@ import { PterodactylPrismaService } from './pterodactyl-prisma.service';
     PrismaService,
     PterodactylPrismaService,
     LogContextService,
+    TelegramClient,
+    TelegramAlertService,
     LoggerService,
     ConfigCacheService,
   ],
@@ -18,6 +22,8 @@ import { PterodactylPrismaService } from './pterodactyl-prisma.service';
     PrismaService,
     PterodactylPrismaService,
     LogContextService,
+    TelegramClient,
+    TelegramAlertService,
     LoggerService,
     ConfigCacheService,
   ],
